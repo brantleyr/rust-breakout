@@ -22,6 +22,8 @@ const BALL_START_X: f32 = 32.5;
 const BALL_START_Y: f32 = -270.;
 const BALL_SIZE: f32 = 12.5;
 const BALL_COLOR: Color = Color::PURPLE;
+const BALL_SPEED: f32 = 4.0;
+const INITIAL_BALL_DIRECTION: Vec2 = Vec2::new(0.5, -0.5);
 const PADDLE_START_X: f32 = 32.5;
 const PADDLE_START_Y: f32 = -300.;
 const PADDLE_HEIGHT: f32 = 20.;
@@ -34,12 +36,18 @@ const RIGHT_BOUND_PADDLE: f32 = RIGHT_WALL - WALL_SIZE - (PADDLE_WIDTH / 2.);
 #[derive(Component)]
 struct Paddle;
 
+#[derive(Component)]
+struct Ball;
+
+#[derive(Component, Deref, DerefMut)]
+struct Velocity(Vec2);
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .insert_resource(ClearColor(BACKGROUND_COLOR))
         .add_systems(Startup, setup)
-        .add_systems(FixedUpdate, move_paddle)
+        .add_systems(FixedUpdate, (move_paddle, apply_velocity))
         .add_systems(Update, bevy::window::close_on_esc)
         .run();
 }
@@ -120,12 +128,16 @@ fn setup(
     }
 
     // Draw Ball
-    commands.spawn(MaterialMesh2dBundle {
-        mesh: meshes.add(shape::Circle::new(BALL_SIZE).into()).into(),
-        material: materials.add(ColorMaterial::from(BALL_COLOR)),
-        transform: Transform::from_translation(Vec3::new(BALL_START_X, BALL_START_Y, 0.)),
-        ..default()
-    });
+    commands.spawn((
+        MaterialMesh2dBundle {
+            mesh: meshes.add(shape::Circle::new(BALL_SIZE).into()).into(),
+            material: materials.add(ColorMaterial::from(BALL_COLOR)),
+            transform: Transform::from_translation(Vec3::new(BALL_START_X, BALL_START_Y, 0.)),
+            ..default()
+        },
+        Ball,
+        Velocity(INITIAL_BALL_DIRECTION.normalize() * BALL_SPEED),
+    ));
 
     // Draw Paddle
     commands.spawn((
@@ -158,4 +170,11 @@ fn move_paddle(
 
     paddle_transform.translation.x =
         new_paddle_position.clamp(LEFT_BOUND_PADDLE, RIGHT_BOUND_PADDLE);
+}
+
+fn apply_velocity(mut query: Query<(&mut Transform, &Velocity)>, time_step: Res<FixedTime>) {
+    for (mut transform, velocity) in &mut query {
+        transform.translation.x += velocity.x * time_step.period.as_secs_f32();
+        transform.translation.y += velocity.y * time_step.period.as_secs_f32();
+    }
 }
