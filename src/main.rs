@@ -114,9 +114,9 @@ fn setup(
                 )),
                 ..default()
             });
-            i2 = i2 + 1.;
+            i2 += 1.;
         }
-        i = i + 1.;
+        i += 1.;
     }
 
     // Draw Ball
