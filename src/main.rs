@@ -53,72 +53,71 @@ fn setup(
 
     // Draw walls
     // Left
-    commands.spawn(
-        SpriteBundle {
-            sprite: Sprite {
-                color: WALL_COLOR,
-                custom_size: Some(Vec2::new(WALL_SIZE, LR_WALL_LENGTH)),
-                ..default()
-            },
-            transform: Transform::from_translation(Vec3::new(LEFT_WALL, 0., 0.)),
+    commands.spawn(SpriteBundle {
+        sprite: Sprite {
+            color: WALL_COLOR,
+            custom_size: Some(Vec2::new(WALL_SIZE, LR_WALL_LENGTH)),
             ..default()
-        });
+        },
+        transform: Transform::from_translation(Vec3::new(LEFT_WALL, 0., 0.)),
+        ..default()
+    });
     // Right
-    commands.spawn(
-        SpriteBundle {
-            sprite: Sprite {
-                color: WALL_COLOR,
-                custom_size: Some(Vec2::new(WALL_SIZE, LR_WALL_LENGTH)),
-                ..default()
-            },
-            transform: Transform::from_translation(Vec3::new(RIGHT_WALL, 0., 0.)),
+    commands.spawn(SpriteBundle {
+        sprite: Sprite {
+            color: WALL_COLOR,
+            custom_size: Some(Vec2::new(WALL_SIZE, LR_WALL_LENGTH)),
             ..default()
-        });
+        },
+        transform: Transform::from_translation(Vec3::new(RIGHT_WALL, 0., 0.)),
+        ..default()
+    });
     // Top
-    commands.spawn(
-        SpriteBundle {
-            sprite: Sprite {
-                color: WALL_COLOR,
-                custom_size: Some(Vec2::new(TB_WALL_LENGTH, WALL_SIZE)),
-                ..default()
-            },
-            transform: Transform::from_translation(Vec3::new(TB_WALL_ADJUST, TOP_WALL, 0.)),
+    commands.spawn(SpriteBundle {
+        sprite: Sprite {
+            color: WALL_COLOR,
+            custom_size: Some(Vec2::new(TB_WALL_LENGTH, WALL_SIZE)),
             ..default()
-        });
+        },
+        transform: Transform::from_translation(Vec3::new(TB_WALL_ADJUST, TOP_WALL, 0.)),
+        ..default()
+    });
     // Bottom
-    commands.spawn(
-        SpriteBundle {
-            sprite: Sprite {
-                color: WALL_COLOR,
-                custom_size: Some(Vec2::new(TB_WALL_LENGTH, WALL_SIZE)),
-                ..default()
-            },
-            transform: Transform::from_translation(Vec3::new(TB_WALL_ADJUST, BOTTOM_WALL, 0.)),
+    commands.spawn(SpriteBundle {
+        sprite: Sprite {
+            color: WALL_COLOR,
+            custom_size: Some(Vec2::new(TB_WALL_LENGTH, WALL_SIZE)),
             ..default()
-        });
+        },
+        transform: Transform::from_translation(Vec3::new(TB_WALL_ADJUST, BOTTOM_WALL, 0.)),
+        ..default()
+    });
 
     // Draw Grid
     let mut i = 0.;
     while i < GRID_HEIGHT {
         let mut i2 = 0.;
-        while i2 < GRID_WIDTH { 
-            let grid_cell_top = GRID_CELL_TOP - (i*GRID_CELL_HEIGHT) - (i*GRID_CELL_SPACE);
-            let grid_cell_left = GRID_CELL_LEFT + (i2*GRID_CELL_WIDTH) + (i2*GRID_CELL_SPACE);
+        while i2 < GRID_WIDTH {
+            let grid_cell_top = GRID_CELL_TOP - (i * GRID_CELL_HEIGHT) - (i * GRID_CELL_SPACE);
+            let grid_cell_left = GRID_CELL_LEFT + (i2 * GRID_CELL_WIDTH) + (i2 * GRID_CELL_SPACE);
             println!("{},{}", grid_cell_top, grid_cell_left);
             commands.spawn(SpriteBundle {
                 sprite: Sprite {
-                    color: Color::rgb(0.25+(i/10.), 0.75, 0.25+(i/10.)),
+                    color: Color::rgb(0.25 + (i / 10.), 0.75, 0.25 + (i / 10.)),
                     custom_size: Some(Vec2::new(GRID_CELL_WIDTH, GRID_CELL_HEIGHT)),
                     ..default()
                 },
-                transform: Transform::from_translation(Vec3::new(grid_cell_left, grid_cell_top, 0.)),
+                transform: Transform::from_translation(Vec3::new(
+                    grid_cell_left,
+                    grid_cell_top,
+                    0.,
+                )),
                 ..default()
             });
             i2 = i2 + 1.;
         }
         i = i + 1.;
     }
-
 
     // Draw Ball
     commands.spawn(MaterialMesh2dBundle {
@@ -129,15 +128,18 @@ fn setup(
     });
 
     // Draw Paddle
-    commands.spawn((SpriteBundle {
-        sprite: Sprite {
-            color: PADDLE_COLOR,
-            custom_size: Some(Vec2::new(PADDLE_WIDTH, PADDLE_HEIGHT)),
+    commands.spawn((
+        SpriteBundle {
+            sprite: Sprite {
+                color: PADDLE_COLOR,
+                custom_size: Some(Vec2::new(PADDLE_WIDTH, PADDLE_HEIGHT)),
+                ..default()
+            },
+            transform: Transform::from_translation(Vec3::new(PADDLE_START_X, PADDLE_START_Y, 0.)),
             ..default()
         },
-        transform: Transform::from_translation(Vec3::new(PADDLE_START_X, PADDLE_START_Y, 0.)),
-        ..default()
-    },Paddle));
+        Paddle,
+    ));
 }
 
 fn move_paddle(
@@ -154,5 +156,6 @@ fn move_paddle(
     let mut paddle_transform = query.single_mut();
     let new_paddle_position = paddle_transform.translation.x + (direction * PADDLE_SPEED);
 
-    paddle_transform.translation.x = new_paddle_position.clamp(LEFT_BOUND_PADDLE, RIGHT_BOUND_PADDLE);
+    paddle_transform.translation.x =
+        new_paddle_position.clamp(LEFT_BOUND_PADDLE, RIGHT_BOUND_PADDLE);
 }
