@@ -40,6 +40,7 @@ fn main() {
         .insert_resource(ClearColor(BACKGROUND_COLOR))
         .add_systems(Startup, setup)
         .add_systems(FixedUpdate, move_paddle)
+        .add_systems(Update, bevy::window::close_on_esc)
         .run();
 }
 
