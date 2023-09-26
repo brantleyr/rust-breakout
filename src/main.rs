@@ -27,12 +27,19 @@ const PADDLE_START_Y: f32 = -300.;
 const PADDLE_HEIGHT: f32 = 20.;
 const PADDLE_WIDTH: f32 = 125.;
 const PADDLE_COLOR: Color = Color::ORANGE;
+const PADDLE_SPEED: f32 = 10.0;
+const LEFT_BOUND_PADDLE: f32 = LEFT_WALL + WALL_SIZE + (PADDLE_WIDTH / 2.);
+const RIGHT_BOUND_PADDLE: f32 = RIGHT_WALL - WALL_SIZE - (PADDLE_WIDTH / 2.);
+
+#[derive(Component)]
+struct Paddle;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .insert_resource(ClearColor(BACKGROUND_COLOR))
         .add_systems(Startup, setup)
+        .add_systems(FixedUpdate, move_paddle)
         .run();
 }
 
@@ -121,7 +128,7 @@ fn setup(
     });
 
     // Draw Paddle
-    commands.spawn(SpriteBundle {
+    commands.spawn((SpriteBundle {
         sprite: Sprite {
             color: PADDLE_COLOR,
             custom_size: Some(Vec2::new(PADDLE_WIDTH, PADDLE_HEIGHT)),
@@ -129,5 +136,22 @@ fn setup(
         },
         transform: Transform::from_translation(Vec3::new(PADDLE_START_X, PADDLE_START_Y, 0.)),
         ..default()
-    });
+    },Paddle));
+}
+
+fn move_paddle(
+    keyboard_input: Res<Input<KeyCode>>,
+    mut query: Query<&mut Transform, With<Paddle>>,
+) {
+    let mut direction = 0.;
+    if keyboard_input.pressed(KeyCode::Left) {
+        direction = -1.0;
+    }
+    if keyboard_input.pressed(KeyCode::Right) {
+        direction = 1.0;
+    }
+    let mut paddle_transform = query.single_mut();
+    let new_paddle_position = paddle_transform.translation.x + (direction * PADDLE_SPEED);
+
+    paddle_transform.translation.x = new_paddle_position.clamp(LEFT_BOUND_PADDLE, RIGHT_BOUND_PADDLE);
 }
