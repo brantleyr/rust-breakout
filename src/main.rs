@@ -1,4 +1,8 @@
-use bevy::{prelude::*, sprite::MaterialMesh2dBundle};
+use bevy::{
+    prelude::*,
+    sprite::collide_aabb::{collide, Collision},
+    sprite::MaterialMesh2dBundle,
+};
 
 // Constants
 const GRID_HEIGHT: f32 = 5.;
@@ -18,18 +22,16 @@ const LR_WALL_LENGTH: f32 = 650.;
 const TB_WALL_LENGTH: f32 = 875.;
 const TB_WALL_ADJUST: f32 = 32.5;
 const WALL_SIZE: f32 = 10.;
-const BALL_START_X: f32 = 32.5;
-const BALL_START_Y: f32 = -270.;
-const BALL_SIZE: f32 = 12.5;
 const BALL_COLOR: Color = Color::PURPLE;
-const BALL_SPEED: f32 = 4.0;
+const BALL_SPEED: f32 = 200.0;
+const BALL_STARTING_POSITION: Vec3 = Vec3::new(0.0, -50.0, 1.0);
+const BALL_SIZE: Vec3 = Vec3::new(30.0, 30.0, 0.0);
 const INITIAL_BALL_DIRECTION: Vec2 = Vec2::new(0.5, -0.5);
-const PADDLE_START_X: f32 = 32.5;
-const PADDLE_START_Y: f32 = -300.;
-const PADDLE_HEIGHT: f32 = 20.;
 const PADDLE_WIDTH: f32 = 125.;
 const PADDLE_COLOR: Color = Color::ORANGE;
 const PADDLE_SPEED: f32 = 10.0;
+const PADDLE_SIZE: Vec3 = Vec3::new(120.0, 20.0, 0.0);
+const GAP_BETWEEN_PADDLE_AND_FLOOR: f32 = 20.0;
 const LEFT_BOUND_PADDLE: f32 = LEFT_WALL + WALL_SIZE + (PADDLE_WIDTH / 2.);
 const RIGHT_BOUND_PADDLE: f32 = RIGHT_WALL - WALL_SIZE - (PADDLE_WIDTH / 2.);
 
@@ -42,12 +44,32 @@ struct Ball;
 #[derive(Component, Deref, DerefMut)]
 struct Velocity(Vec2);
 
+#[derive(Component)]
+struct Collider;
+
+#[derive(Event, Default)]
+struct CollisionEvent;
+
+#[derive(Component)]
+struct Brick;
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .insert_resource(ClearColor(BACKGROUND_COLOR))
+        .add_event::<CollisionEvent>()
+        .insert_resource(FixedTime::new_from_secs(1.0 / 60.0))
         .add_systems(Startup, setup)
-        .add_systems(FixedUpdate, (move_paddle, apply_velocity))
+        .add_systems(
+            FixedUpdate,
+            (
+                check_for_collisions,
+                apply_velocity.before(check_for_collisions),
+                move_paddle
+                    .before(check_for_collisions)
+                    .after(apply_velocity),
+            ),
+        )
         .add_systems(Update, bevy::window::close_on_esc)
         .run();
 }
@@ -61,45 +83,57 @@ fn setup(
 
     // Draw walls
     // Left
-    commands.spawn(SpriteBundle {
-        sprite: Sprite {
-            color: WALL_COLOR,
-            custom_size: Some(Vec2::new(WALL_SIZE, LR_WALL_LENGTH)),
+    commands.spawn((
+        SpriteBundle {
+            sprite: Sprite {
+                color: WALL_COLOR,
+                custom_size: Some(Vec2::new(WALL_SIZE, LR_WALL_LENGTH)),
+                ..default()
+            },
+            transform: Transform::from_translation(Vec3::new(LEFT_WALL, 0., 0.)),
             ..default()
         },
-        transform: Transform::from_translation(Vec3::new(LEFT_WALL, 0., 0.)),
-        ..default()
-    });
+        Collider
+    ));
     // Right
-    commands.spawn(SpriteBundle {
-        sprite: Sprite {
-            color: WALL_COLOR,
-            custom_size: Some(Vec2::new(WALL_SIZE, LR_WALL_LENGTH)),
+    commands.spawn((
+        SpriteBundle {
+            sprite: Sprite {
+                color: WALL_COLOR,
+                custom_size: Some(Vec2::new(WALL_SIZE, LR_WALL_LENGTH)),
+                ..default()
+            },
+            transform: Transform::from_translation(Vec3::new(RIGHT_WALL, 0., 1.)),
             ..default()
         },
-        transform: Transform::from_translation(Vec3::new(RIGHT_WALL, 0., 0.)),
-        ..default()
-    });
+        Collider
+    ));
     // Top
-    commands.spawn(SpriteBundle {
-        sprite: Sprite {
-            color: WALL_COLOR,
-            custom_size: Some(Vec2::new(TB_WALL_LENGTH, WALL_SIZE)),
+    commands.spawn((
+        SpriteBundle {
+            sprite: Sprite {
+                color: WALL_COLOR,
+                custom_size: Some(Vec2::new(TB_WALL_LENGTH, WALL_SIZE)),
+                ..default()
+            },
+            transform: Transform::from_translation(Vec3::new(TB_WALL_ADJUST, TOP_WALL, 0.)),
             ..default()
         },
-        transform: Transform::from_translation(Vec3::new(TB_WALL_ADJUST, TOP_WALL, 0.)),
-        ..default()
-    });
+        Collider
+    ));
     // Bottom
-    commands.spawn(SpriteBundle {
-        sprite: Sprite {
-            color: WALL_COLOR,
-            custom_size: Some(Vec2::new(TB_WALL_LENGTH, WALL_SIZE)),
+    commands.spawn((
+        SpriteBundle {
+            sprite: Sprite {
+                color: WALL_COLOR,
+                custom_size: Some(Vec2::new(TB_WALL_LENGTH, WALL_SIZE)),
+                ..default()
+            },
+            transform: Transform::from_translation(Vec3::new(TB_WALL_ADJUST, BOTTOM_WALL, 0.)),
             ..default()
         },
-        transform: Transform::from_translation(Vec3::new(TB_WALL_ADJUST, BOTTOM_WALL, 0.)),
-        ..default()
-    });
+        Collider
+    ));
 
     // Draw Grid
     let mut i = 0.;
@@ -109,49 +143,59 @@ fn setup(
             let grid_cell_top = GRID_CELL_TOP - (i * GRID_CELL_HEIGHT) - (i * GRID_CELL_SPACE);
             let grid_cell_left = GRID_CELL_LEFT + (i2 * GRID_CELL_WIDTH) + (i2 * GRID_CELL_SPACE);
             println!("{},{}", grid_cell_top, grid_cell_left);
-            commands.spawn(SpriteBundle {
-                sprite: Sprite {
-                    color: Color::rgb(0.25 + (i / 10.), 0.75, 0.25 + (i / 10.)),
-                    custom_size: Some(Vec2::new(GRID_CELL_WIDTH, GRID_CELL_HEIGHT)),
+            commands.spawn((
+                SpriteBundle {
+                    sprite: Sprite {
+                        color: Color::rgb(0.25 + (i / 10.), 0.75, 0.25 + (i / 10.)),
+                        custom_size: Some(Vec2::new(GRID_CELL_WIDTH, GRID_CELL_HEIGHT)),
+                        ..default()
+                    },
+                    transform: Transform::from_translation(Vec3::new(
+                        grid_cell_left,
+                        grid_cell_top,
+                        0.,
+                    )),
                     ..default()
                 },
-                transform: Transform::from_translation(Vec3::new(
-                    grid_cell_left,
-                    grid_cell_top,
-                    0.,
-                )),
-                ..default()
-            });
+                Brick,
+                Collider
+            ));
             i2 += 1.;
         }
         i += 1.;
     }
 
+    // Draw Paddle
+    let paddle_y = BOTTOM_WALL + GAP_BETWEEN_PADDLE_AND_FLOOR;
+    commands.spawn((
+        SpriteBundle {
+            transform: Transform {
+                translation: Vec3::new(0.0, paddle_y, 0.0),
+                scale: PADDLE_SIZE,
+                ..default()
+            },
+            sprite: Sprite {
+                color: PADDLE_COLOR,
+                ..default()
+            },
+            ..default()
+        },
+        Paddle,
+        Collider,
+    ));
+
     // Draw Ball
     commands.spawn((
         MaterialMesh2dBundle {
-            mesh: meshes.add(shape::Circle::new(BALL_SIZE).into()).into(),
+            mesh: meshes.add(shape::Circle::default().into()).into(),
             material: materials.add(ColorMaterial::from(BALL_COLOR)),
-            transform: Transform::from_translation(Vec3::new(BALL_START_X, BALL_START_Y, 0.)),
+            transform: Transform::from_translation(BALL_STARTING_POSITION).with_scale(BALL_SIZE),
             ..default()
         },
         Ball,
         Velocity(INITIAL_BALL_DIRECTION.normalize() * BALL_SPEED),
     ));
 
-    // Draw Paddle
-    commands.spawn((
-        SpriteBundle {
-            sprite: Sprite {
-                color: PADDLE_COLOR,
-                custom_size: Some(Vec2::new(PADDLE_WIDTH, PADDLE_HEIGHT)),
-                ..default()
-            },
-            transform: Transform::from_translation(Vec3::new(PADDLE_START_X, PADDLE_START_Y, 0.)),
-            ..default()
-        },
-        Paddle,
-    ));
 }
 
 fn move_paddle(
@@ -177,4 +221,60 @@ fn apply_velocity(mut query: Query<(&mut Transform, &Velocity)>, time_step: Res<
         transform.translation.x += velocity.x * time_step.period.as_secs_f32();
         transform.translation.y += velocity.y * time_step.period.as_secs_f32();
     }
+}
+
+fn check_for_collisions(
+    mut commands: Commands,
+    mut ball_query: Query<(&mut Velocity, &Transform), With<Ball>>,
+    collider_query: Query<(Entity, &Transform, Option<&Brick>), With<Collider>>,
+    mut collision_events: EventWriter<CollisionEvent>,
+) {
+
+    let (mut ball_velocity, ball_transform) = ball_query.single_mut();
+    let ball_size = ball_transform.scale.truncate();
+
+    // check collision with walls
+    for (collider_entity, transform, maybe_brick) in &collider_query {
+        let collision = collide(
+            ball_transform.translation,
+            ball_size,
+            transform.translation,
+            transform.scale.truncate(),
+        );
+        if let Some(collision) = collision {
+            // Sends a collision event so that other systems can react to the collision
+            collision_events.send_default();
+
+            // Bricks should be despawned and increment the scoreboard on collision
+            if maybe_brick.is_some() {
+                //scoreboard.score += 1;
+                //commands.entity(collider_entity).despawn();
+            }
+
+            // reflect the ball when it collides
+            let mut reflect_x = false;
+            let mut reflect_y = false;
+
+            // only reflect if the ball's velocity is going in the opposite direction of the
+            // collision
+            match collision {
+                Collision::Left => reflect_x = ball_velocity.x > 0.0,
+                Collision::Right => reflect_x = ball_velocity.x < 0.0,
+                Collision::Top => reflect_y = ball_velocity.y < 0.0,
+                Collision::Bottom => reflect_y = ball_velocity.y > 0.0,
+                Collision::Inside => { /* do nothing */ }
+            }
+
+            // reflect velocity on the x-axis if we hit something on the x-axis
+            if reflect_x {
+                ball_velocity.x = -ball_velocity.x;
+            }
+
+            // reflect velocity on the y-axis if we hit something on the y-axis
+            if reflect_y {
+                ball_velocity.y = -ball_velocity.y;
+            }
+        }
+    }
+
 }
