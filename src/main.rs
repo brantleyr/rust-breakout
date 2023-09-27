@@ -53,6 +53,12 @@ const SCOREBOARD_TEXT_PADDING: Val = Val::Px(5.0);
 const SCOREBOARD_TEXT_COLOR: Color = Color::rgb(0.5, 0.5, 1.0);
 const SCOREBOARD_SCORE_COLOR: Color = Color::rgb(1.0, 0.5, 0.5);
 
+// Info text
+const INFO_VERTICAL_PADDING: Val = Val::Px(45.0);
+const INFO_TEXT_PADDING: Val = Val::Px(8.0);
+const INFO_FONT_SIZE: f32 = 18.5;
+const INFO_TEXT_COLOR: Color = Color::rgb(0.5, 0.5, 1.0);
+
 #[derive(Component)]
 struct Paddle;
 
@@ -70,6 +76,12 @@ struct CollisionEvent;
 
 #[derive(Component)]
 struct Brick;
+
+#[derive(Component)]
+struct InfoText;
+
+#[derive(Component)]
+struct ScoreboardText;
 
 // This resource tracks the game's score
 #[derive(Resource)]
@@ -239,8 +251,27 @@ fn setup(
         Velocity(INITIAL_BALL_DIRECTION.normalize() * BALL_SPEED),
     ));
 
+    // Draw Info text
+    commands.spawn((
+        TextBundle::from_section(
+            "Keys:\nLeft/Right arrow to move\nEscape to Pause.",
+            TextStyle {
+                font_size: INFO_FONT_SIZE,
+                color: INFO_TEXT_COLOR,
+                ..default()
+            },
+        )
+        .with_style(Style {
+            position_type: PositionType::Absolute,
+            top: INFO_VERTICAL_PADDING,
+            left: INFO_TEXT_PADDING,
+            ..default()
+        }),
+        InfoText,
+    ));
+
     // Draw Scoreboard
-    commands.spawn(
+    commands.spawn((
         TextBundle::from_sections([
             TextSection::new(
                 "Score: ",
@@ -262,7 +293,8 @@ fn setup(
             left: SCOREBOARD_TEXT_PADDING,
             ..default()
         }),
-    );
+        ScoreboardText,
+    ));
 }
 
 fn move_paddle(
@@ -290,7 +322,10 @@ fn apply_velocity(mut query: Query<(&mut Transform, &Velocity)>, time_step: Res<
     }
 }
 
-fn update_scoreboard(scoreboard: Res<Scoreboard>, mut query: Query<&mut Text>) {
+fn update_scoreboard(
+    scoreboard: Res<Scoreboard>,
+    mut query: Query<&mut Text, With<ScoreboardText>>,
+) {
     let mut text = query.single_mut();
     text.sections[1].value = scoreboard.score.to_string();
 }
