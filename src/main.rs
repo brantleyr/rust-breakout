@@ -29,7 +29,7 @@ const WALL_SIZE: f32 = 10.;
 
 // Ball
 const BALL_COLOR: Color = Color::PURPLE;
-const BALL_SPEED: f32 = 200.0;
+const BALL_SPEED: f32 = 400.0;
 const BALL_STARTING_POSITION: Vec3 = Vec3::new(0.0, -50.0, 1.0);
 const BALL_SIZE: Vec3 = Vec3::new(30.0, 30.0, 0.0);
 const LEFT_WALL_SIZE: Vec3 = Vec3::new(10.0, 650.0, 0.0);
@@ -46,6 +46,12 @@ const PADDLE_SIZE: Vec3 = Vec3::new(120.0, 20.0, 0.0);
 const GAP_BETWEEN_PADDLE_AND_FLOOR: f32 = 20.0;
 const LEFT_BOUND_PADDLE: f32 = LEFT_WALL + WALL_SIZE + (PADDLE_WIDTH / 2.);
 const RIGHT_BOUND_PADDLE: f32 = RIGHT_WALL - WALL_SIZE - (PADDLE_WIDTH / 2.);
+
+// Scoreboard
+const SCOREBOARD_FONT_SIZE: f32 = 40.0;
+const SCOREBOARD_TEXT_PADDING: Val = Val::Px(5.0);
+const SCOREBOARD_TEXT_COLOR: Color = Color::rgb(0.5, 0.5, 1.0);
+const SCOREBOARD_SCORE_COLOR: Color = Color::rgb(1.0, 0.5, 0.5);
 
 #[derive(Component)]
 struct Paddle;
@@ -65,11 +71,18 @@ struct CollisionEvent;
 #[derive(Component)]
 struct Brick;
 
+// This resource tracks the game's score
+#[derive(Resource)]
+struct Scoreboard {
+    score: usize,
+}
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .insert_resource(ClearColor(BACKGROUND_COLOR))
         .add_event::<CollisionEvent>()
+        .insert_resource(Scoreboard { score: 0 })
         .insert_resource(FixedTime::new_from_secs(1.0 / 60.0))
         .add_systems(Startup, setup)
         .add_systems(
@@ -82,7 +95,7 @@ fn main() {
                     .after(apply_velocity),
             ),
         )
-        .add_systems(Update, bevy::window::close_on_esc)
+        .add_systems(Update, (update_scoreboard, bevy::window::close_on_esc))
         .run();
 }
 
@@ -188,7 +201,7 @@ fn setup(
                     ..default()
                 },
                 Brick,
-                Collider
+                Collider,
             ));
             i2 += 1.;
         }
@@ -226,6 +239,30 @@ fn setup(
         Velocity(INITIAL_BALL_DIRECTION.normalize() * BALL_SPEED),
     ));
 
+    // Draw Scoreboard
+    commands.spawn(
+        TextBundle::from_sections([
+            TextSection::new(
+                "Score: ",
+                TextStyle {
+                    font_size: SCOREBOARD_FONT_SIZE,
+                    color: SCOREBOARD_TEXT_COLOR,
+                    ..default()
+                },
+            ),
+            TextSection::from_style(TextStyle {
+                font_size: SCOREBOARD_FONT_SIZE,
+                color: SCOREBOARD_SCORE_COLOR,
+                ..default()
+            }),
+        ])
+        .with_style(Style {
+            position_type: PositionType::Absolute,
+            top: SCOREBOARD_TEXT_PADDING,
+            left: SCOREBOARD_TEXT_PADDING,
+            ..default()
+        }),
+    );
 }
 
 fn move_paddle(
@@ -253,13 +290,18 @@ fn apply_velocity(mut query: Query<(&mut Transform, &Velocity)>, time_step: Res<
     }
 }
 
+fn update_scoreboard(scoreboard: Res<Scoreboard>, mut query: Query<&mut Text>) {
+    let mut text = query.single_mut();
+    text.sections[1].value = scoreboard.score.to_string();
+}
+
 fn check_for_collisions(
     mut commands: Commands,
     mut ball_query: Query<(&mut Velocity, &Transform), With<Ball>>,
+    mut scoreboard: ResMut<Scoreboard>,
     collider_query: Query<(Entity, &Transform, Option<&Brick>), With<Collider>>,
     mut collision_events: EventWriter<CollisionEvent>,
 ) {
-
     let (mut ball_velocity, ball_transform) = ball_query.single_mut();
     let ball_size = ball_transform.scale.truncate();
 
@@ -277,7 +319,7 @@ fn check_for_collisions(
 
             // Bricks should be despawned and increment the scoreboard on collision
             if maybe_brick.is_some() {
-                //scoreboard.score += 1;
+                scoreboard.score += 1;
                 commands.entity(collider_entity).despawn();
             }
 
@@ -306,5 +348,4 @@ fn check_for_collisions(
             }
         }
     }
-
 }
