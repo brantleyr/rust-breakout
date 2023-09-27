@@ -26,6 +26,10 @@ const BALL_COLOR: Color = Color::PURPLE;
 const BALL_SPEED: f32 = 200.0;
 const BALL_STARTING_POSITION: Vec3 = Vec3::new(0.0, -50.0, 1.0);
 const BALL_SIZE: Vec3 = Vec3::new(30.0, 30.0, 0.0);
+const LEFT_WALL_SIZE: Vec3 = Vec3::new(10.0, 650.0, 0.0);
+const RIGHT_WALL_SIZE: Vec3 = Vec3::new(10.0, 650.0, 0.0);
+const TOP_WALL_SIZE: Vec3 = Vec3::new(875.0, 10.0, 0.0);
+const BOTTOM_WALL_SIZE: Vec3 = Vec3::new(875.0, 10.0, 0.0);
 const INITIAL_BALL_DIRECTION: Vec2 = Vec2::new(0.5, -0.5);
 const PADDLE_WIDTH: f32 = 125.;
 const PADDLE_COLOR: Color = Color::ORANGE;
@@ -83,56 +87,76 @@ fn setup(
 
     // Draw walls
     // Left
+    let left_x = LEFT_WALL;
+    let left_y = 0.0;
     commands.spawn((
         SpriteBundle {
-            sprite: Sprite {
-                color: WALL_COLOR,
-                custom_size: Some(Vec2::new(WALL_SIZE, LR_WALL_LENGTH)),
+            transform: Transform {
+                translation: Vec3::new(left_x, left_y, 0.0),
+                scale: LEFT_WALL_SIZE,
                 ..default()
             },
-            transform: Transform::from_translation(Vec3::new(LEFT_WALL, 0., 0.)),
+            sprite: Sprite {
+                color: WALL_COLOR,
+                ..default()
+            },
             ..default()
         },
-        Collider
+        Collider,
     ));
     // Right
+    let right_x = RIGHT_WALL;
+    let right_y = 0.0;
     commands.spawn((
         SpriteBundle {
-            sprite: Sprite {
-                color: WALL_COLOR,
-                custom_size: Some(Vec2::new(WALL_SIZE, LR_WALL_LENGTH)),
+            transform: Transform {
+                translation: Vec3::new(right_x, right_y, 0.0),
+                scale: RIGHT_WALL_SIZE,
                 ..default()
             },
-            transform: Transform::from_translation(Vec3::new(RIGHT_WALL, 0., 1.)),
+            sprite: Sprite {
+                color: WALL_COLOR,
+                ..default()
+            },
             ..default()
         },
-        Collider
+        Collider,
     ));
     // Top
+    let top_x = 0.0 + TB_WALL_ADJUST;
+    let top_y = TOP_WALL;
     commands.spawn((
         SpriteBundle {
-            sprite: Sprite {
-                color: WALL_COLOR,
-                custom_size: Some(Vec2::new(TB_WALL_LENGTH, WALL_SIZE)),
+            transform: Transform {
+                translation: Vec3::new(top_x, top_y, 0.0),
+                scale: TOP_WALL_SIZE,
                 ..default()
             },
-            transform: Transform::from_translation(Vec3::new(TB_WALL_ADJUST, TOP_WALL, 0.)),
+            sprite: Sprite {
+                color: WALL_COLOR,
+                ..default()
+            },
             ..default()
         },
-        Collider
+        Collider,
     ));
     // Bottom
+    let bottom_x = 0.0 + TB_WALL_ADJUST;
+    let bottom_y = BOTTOM_WALL;
     commands.spawn((
         SpriteBundle {
-            sprite: Sprite {
-                color: WALL_COLOR,
-                custom_size: Some(Vec2::new(TB_WALL_LENGTH, WALL_SIZE)),
+            transform: Transform {
+                translation: Vec3::new(bottom_x, bottom_y, 0.0),
+                scale: BOTTOM_WALL_SIZE,
                 ..default()
             },
-            transform: Transform::from_translation(Vec3::new(TB_WALL_ADJUST, BOTTOM_WALL, 0.)),
+            sprite: Sprite {
+                color: WALL_COLOR,
+                ..default()
+            },
             ..default()
         },
-        Collider
+        Collider,
     ));
 
     // Draw Grid
@@ -158,7 +182,7 @@ fn setup(
                     ..default()
                 },
                 Brick,
-                Collider
+                //Collider
             ));
             i2 += 1.;
         }
