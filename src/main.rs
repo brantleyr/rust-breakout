@@ -5,6 +5,7 @@ use bevy::{
 };
 
 // Constants
+// Grid/Bricks
 const GRID_HEIGHT: f32 = 5.;
 const GRID_WIDTH: f32 = 10.;
 const GRID_CELL_SPACE: f32 = 5.;
@@ -12,16 +13,21 @@ const GRID_CELL_WIDTH: f32 = 80.;
 const GRID_CELL_HEIGHT: f32 = 30.;
 const GRID_CELL_TOP: f32 = 300.;
 const GRID_CELL_LEFT: f32 = -350.;
+const BRICK_SIZE: Vec3 = Vec3::new(GRID_CELL_WIDTH, GRID_CELL_HEIGHT, 0.0);
+
+// BG
 const BACKGROUND_COLOR: Color = Color::rgb(0., 0., 0.25);
+
+// Walls
 const LEFT_WALL: f32 = -400.;
 const RIGHT_WALL: f32 = 465.;
 const TOP_WALL: f32 = 325.;
 const BOTTOM_WALL: f32 = -325.;
 const WALL_COLOR: Color = Color::rgb(0., 0.75, 0.);
-const LR_WALL_LENGTH: f32 = 650.;
-const TB_WALL_LENGTH: f32 = 875.;
 const TB_WALL_ADJUST: f32 = 32.5;
 const WALL_SIZE: f32 = 10.;
+
+// Ball
 const BALL_COLOR: Color = Color::PURPLE;
 const BALL_SPEED: f32 = 200.0;
 const BALL_STARTING_POSITION: Vec3 = Vec3::new(0.0, -50.0, 1.0);
@@ -31,6 +37,8 @@ const RIGHT_WALL_SIZE: Vec3 = Vec3::new(10.0, 650.0, 0.0);
 const TOP_WALL_SIZE: Vec3 = Vec3::new(875.0, 10.0, 0.0);
 const BOTTOM_WALL_SIZE: Vec3 = Vec3::new(875.0, 10.0, 0.0);
 const INITIAL_BALL_DIRECTION: Vec2 = Vec2::new(0.5, -0.5);
+
+// Paddle
 const PADDLE_WIDTH: f32 = 125.;
 const PADDLE_COLOR: Color = Color::ORANGE;
 const PADDLE_SPEED: f32 = 10.0;
@@ -166,23 +174,21 @@ fn setup(
         while i2 < GRID_WIDTH {
             let grid_cell_top = GRID_CELL_TOP - (i * GRID_CELL_HEIGHT) - (i * GRID_CELL_SPACE);
             let grid_cell_left = GRID_CELL_LEFT + (i2 * GRID_CELL_WIDTH) + (i2 * GRID_CELL_SPACE);
-            println!("{},{}", grid_cell_top, grid_cell_left);
             commands.spawn((
                 SpriteBundle {
-                    sprite: Sprite {
-                        color: Color::rgb(0.25 + (i / 10.), 0.75, 0.25 + (i / 10.)),
-                        custom_size: Some(Vec2::new(GRID_CELL_WIDTH, GRID_CELL_HEIGHT)),
+                    transform: Transform {
+                        translation: Vec3::new(grid_cell_left, grid_cell_top, 0.0),
+                        scale: BRICK_SIZE,
                         ..default()
                     },
-                    transform: Transform::from_translation(Vec3::new(
-                        grid_cell_left,
-                        grid_cell_top,
-                        0.,
-                    )),
+                    sprite: Sprite {
+                        color: Color::rgb(0.25 + (i / 10.), 0.75, 0.25 + (i / 10.)),
+                        ..default()
+                    },
                     ..default()
                 },
                 Brick,
-                //Collider
+                Collider
             ));
             i2 += 1.;
         }
@@ -272,7 +278,7 @@ fn check_for_collisions(
             // Bricks should be despawned and increment the scoreboard on collision
             if maybe_brick.is_some() {
                 //scoreboard.score += 1;
-                //commands.entity(collider_entity).despawn();
+                commands.entity(collider_entity).despawn();
             }
 
             // reflect the ball when it collides
