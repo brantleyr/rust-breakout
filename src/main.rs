@@ -74,6 +74,9 @@ struct Collider;
 #[derive(Event, Default)]
 struct CollisionEvent;
 
+#[derive(Resource)]
+struct CollisionSound(Handle<AudioSource>);
+
 #[derive(Component)]
 struct Brick;
 
@@ -105,6 +108,7 @@ fn main() {
                 move_paddle
                     .before(check_for_collisions)
                     .after(apply_velocity),
+                play_collision_sound.after(check_for_collisions),
             ),
         )
         .add_systems(Update, (update_scoreboard, bevy::window::close_on_esc))
@@ -115,6 +119,7 @@ fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    asset_server: Res<AssetServer>,
 ) {
     commands.spawn(Camera2dBundle::default());
 
@@ -219,6 +224,10 @@ fn setup(
         }
         i += 1.;
     }
+
+    // Load collision sound
+    let ball_collision_sound = asset_server.load("sounds/breakout_collision.ogg");
+    commands.insert_resource(CollisionSound(ball_collision_sound));
 
     // Draw Paddle
     let paddle_y = BOTTOM_WALL + GAP_BETWEEN_PADDLE_AND_FLOOR;
@@ -382,5 +391,22 @@ fn check_for_collisions(
                 ball_velocity.y = -ball_velocity.y;
             }
         }
+    }
+}
+
+fn play_collision_sound(
+    mut commands: Commands,
+    mut collision_events: EventReader<CollisionEvent>,
+    sound: Res<CollisionSound>,
+) {
+    // Play a sound once per frame if a collision occurred.
+    if !collision_events.is_empty() {
+        // This prevents events staying active on the next frame.
+        collision_events.clear();
+        commands.spawn(AudioBundle {
+            source: sound.0.clone(),
+            // auto-despawn the entity when playback finishes
+            settings: PlaybackSettings::DESPAWN,
+        });
     }
 }
