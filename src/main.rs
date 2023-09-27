@@ -254,7 +254,7 @@ fn setup(
     // Draw Info text
     commands.spawn((
         TextBundle::from_section(
-            "Keys:\nLeft/Right arrow to move\nEscape to Pause.",
+            "Keys:\nLeft/Right arrow to move\nEscape to Quit.",
             TextStyle {
                 font_size: INFO_FONT_SIZE,
                 color: INFO_TEXT_COLOR,
