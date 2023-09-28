@@ -136,7 +136,18 @@ fn main() {
         .insert_resource(ClearColor(BACKGROUND_COLOR))
         .add_systems(
             Update,
-            (check_for_state).run_if(in_state(GameState::InGame)),
+            (
+                check_for_state,
+                apply_velocity.before(check_for_collisions),
+                move_paddle
+                    .before(check_for_collisions)
+                    .after(apply_velocity),
+                check_for_collisions,
+                play_collision_sound.after(check_for_collisions),
+                play_explosion_sound.after(check_for_collisions),
+                update_scoreboard,
+            )
+                .run_if(in_state(GameState::InGame)),
         )
         .add_systems(
             Update,
@@ -146,19 +157,7 @@ fn main() {
         .add_event::<ExplosionEvent>()
         .insert_resource(Scoreboard { score: 0 })
         .insert_resource(FixedTime::new_from_secs(1.0 / 60.0))
-        .add_systems(
-            FixedUpdate,
-            (
-                apply_velocity.before(check_for_collisions),
-                move_paddle
-                    .before(check_for_collisions)
-                    .after(apply_velocity),
-                check_for_collisions,
-                play_collision_sound.after(check_for_collisions),
-                play_explosion_sound.after(check_for_collisions),
-            ),
-        )
-        .add_systems(Update, (update_scoreboard, bevy::window::close_on_esc))
+        .add_systems(Update, bevy::window::close_on_esc)
         .run();
 }
 
