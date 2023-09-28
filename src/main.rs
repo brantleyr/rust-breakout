@@ -451,13 +451,14 @@ fn check_for_state(
                 next_state.set(GameState::Paused)
             }
         }
-        GameState::Paused => {
-            if keyboard_input.just_released(KeyCode::Return) {
+        GameState::Paused => match keyboard_input.just_released(KeyCode::Return) {
+            true => {
                 for pause_ent in &pause_query {
                     commands.entity(pause_ent).despawn();
                 }
                 next_state.set(GameState::InGame)
-            } else {
+            }
+            false => {
                 commands.spawn((
                     SpriteBundle {
                         transform: Transform {
@@ -492,7 +493,7 @@ fn check_for_state(
                 ));
                 next_state.set(GameState::Paused)
             }
-        }
+        },
     }
 }
 
