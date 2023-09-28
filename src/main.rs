@@ -5,6 +5,10 @@ use bevy::{
 };
 
 // Constants
+// Game States
+static mut GAME_STARTED: bool = false;
+static mut GAME_PAUSED: bool = false;
+
 // Grid/Bricks
 const GRID_HEIGHT: f32 = 5.;
 const GRID_WIDTH: f32 = 10.;
@@ -59,6 +63,14 @@ const INFO_TEXT_PADDING: Val = Val::Px(8.0);
 const INFO_FONT_SIZE: f32 = 18.5;
 const INFO_TEXT_COLOR: Color = Color::rgb(0.5, 0.5, 1.0);
 
+// Start Game text and Overlay
+const START_GAME_VERTICAL_PADDING: Val = Val::Px(300.0);
+const START_GAME_LEFT_PADDING: Val = Val::Px(475.0);
+const START_GAME_FONT_SIZE: f32 = 50.0;
+const START_GAME_TEXT_COLOR: Color = Color::rgb(0.5, 0.5, 1.0);
+const START_OVERLAY_SIZE: Vec3 = Vec3::new(1500.0, 1500.0, 0.0);
+const START_OVERLAY_COLOR: Color = Color::rgba(0.0, 0.0, 0.0, 0.95);
+
 #[derive(Component)]
 struct Paddle;
 
@@ -79,6 +91,9 @@ struct CollisionSound(Handle<AudioSource>);
 
 #[derive(Component)]
 struct Brick;
+
+#[derive(Component)]
+struct StartGameOverlay;
 
 #[derive(Component)]
 struct InfoText;
@@ -102,7 +117,8 @@ fn main() {
         .add_systems(Startup, setup)
         .add_systems(
             FixedUpdate,
-            (
+            (   
+                check_for_start_game,
                 check_for_collisions,
                 apply_velocity.before(check_for_collisions),
                 move_paddle
@@ -304,30 +320,76 @@ fn setup(
         }),
         ScoreboardText,
     ));
+
+    // Draw "ENTER to start" if Game has not yet been started
+    unsafe {
+        if !GAME_STARTED {
+            commands.spawn((
+                SpriteBundle {
+                    transform: Transform {
+                        translation: Vec3::new(0.0, 0.0, 1.0),
+                        scale: START_OVERLAY_SIZE,
+                        ..default()
+                    },
+                    sprite: Sprite {
+                        color: START_OVERLAY_COLOR,
+                        ..default()
+                    },
+                    ..default()
+                },
+                StartGameOverlay,
+            ));
+            commands.spawn((
+                TextBundle::from_section(
+                    "ENTER to start",
+                    TextStyle {
+                        font_size: START_GAME_FONT_SIZE,
+                        color: START_GAME_TEXT_COLOR,
+                        ..default()
+                    },
+                )
+                .with_style(Style {
+                    position_type: PositionType::Absolute,
+                    top: START_GAME_VERTICAL_PADDING,
+                    left: START_GAME_LEFT_PADDING,
+                    ..default()
+                }),
+                StartGameOverlay,
+            ));
+        }
+    }
 }
 
 fn move_paddle(
     keyboard_input: Res<Input<KeyCode>>,
     mut query: Query<&mut Transform, With<Paddle>>,
 ) {
-    let mut direction = 0.;
-    if keyboard_input.pressed(KeyCode::Left) {
-        direction = -1.0;
-    }
-    if keyboard_input.pressed(KeyCode::Right) {
-        direction = 1.0;
-    }
-    let mut paddle_transform = query.single_mut();
-    let new_paddle_position = paddle_transform.translation.x + (direction * PADDLE_SPEED);
+    unsafe {
+        if GAME_STARTED && !GAME_PAUSED {
+            let mut direction = 0.;
+            if keyboard_input.pressed(KeyCode::Left) {
+                direction = -1.0;
+            }
+            if keyboard_input.pressed(KeyCode::Right) {
+                direction = 1.0;
+            }
+            let mut paddle_transform = query.single_mut();
+            let new_paddle_position = paddle_transform.translation.x + (direction * PADDLE_SPEED);
 
-    paddle_transform.translation.x =
-        new_paddle_position.clamp(LEFT_BOUND_PADDLE, RIGHT_BOUND_PADDLE);
+            paddle_transform.translation.x =
+                new_paddle_position.clamp(LEFT_BOUND_PADDLE, RIGHT_BOUND_PADDLE);
+        }
+    }
 }
 
 fn apply_velocity(mut query: Query<(&mut Transform, &Velocity)>, time_step: Res<FixedTime>) {
-    for (mut transform, velocity) in &mut query {
-        transform.translation.x += velocity.x * time_step.period.as_secs_f32();
-        transform.translation.y += velocity.y * time_step.period.as_secs_f32();
+    unsafe {
+        if GAME_STARTED && !GAME_PAUSED {
+            for (mut transform, velocity) in &mut query {
+                transform.translation.x += velocity.x * time_step.period.as_secs_f32();
+                transform.translation.y += velocity.y * time_step.period.as_secs_f32();
+            }
+        }
     }
 }
 
@@ -339,6 +401,22 @@ fn update_scoreboard(
     text.sections[1].value = scoreboard.score.to_string();
 }
 
+fn check_for_start_game(
+    mut commands: Commands,
+    keyboard_input: Res<Input<KeyCode>>,
+    start_query: Query<Entity, With<StartGameOverlay>>,
+) {
+    if keyboard_input.pressed(KeyCode::Return) {
+        for start_ent in & start_query {
+            commands.entity(start_ent).despawn();
+        }
+        unsafe {
+            GAME_STARTED = true;
+        }
+    }
+
+}
+
 fn check_for_collisions(
     mut commands: Commands,
     mut ball_query: Query<(&mut Velocity, &Transform), With<Ball>>,
@@ -346,49 +424,53 @@ fn check_for_collisions(
     collider_query: Query<(Entity, &Transform, Option<&Brick>), With<Collider>>,
     mut collision_events: EventWriter<CollisionEvent>,
 ) {
-    let (mut ball_velocity, ball_transform) = ball_query.single_mut();
-    let ball_size = ball_transform.scale.truncate();
+    unsafe {
+        if GAME_STARTED && !GAME_PAUSED {
+            let (mut ball_velocity, ball_transform) = ball_query.single_mut();
+            let ball_size = ball_transform.scale.truncate();
 
-    // check collision with walls
-    for (collider_entity, transform, maybe_brick) in &collider_query {
-        let collision = collide(
-            ball_transform.translation,
-            ball_size,
-            transform.translation,
-            transform.scale.truncate(),
-        );
-        if let Some(collision) = collision {
-            // Sends a collision event so that other systems can react to the collision
-            collision_events.send_default();
+            // check collision with walls
+            for (collider_entity, transform, maybe_brick) in &collider_query {
+                let collision = collide(
+                    ball_transform.translation,
+                    ball_size,
+                    transform.translation,
+                    transform.scale.truncate(),
+                );
+                if let Some(collision) = collision {
+                    // Sends a collision event so that other systems can react to the collision
+                    collision_events.send_default();
 
-            // Bricks should be despawned and increment the scoreboard on collision
-            if maybe_brick.is_some() {
-                scoreboard.score += 1;
-                commands.entity(collider_entity).despawn();
-            }
+                    // Bricks should be despawned and increment the scoreboard on collision
+                    if maybe_brick.is_some() {
+                        scoreboard.score += 1;
+                        commands.entity(collider_entity).despawn();
+                    }
 
-            // reflect the ball when it collides
-            let mut reflect_x = false;
-            let mut reflect_y = false;
+                    // reflect the ball when it collides
+                    let mut reflect_x = false;
+                    let mut reflect_y = false;
 
-            // only reflect if the ball's velocity is going in the opposite direction of the
-            // collision
-            match collision {
-                Collision::Left => reflect_x = ball_velocity.x > 0.0,
-                Collision::Right => reflect_x = ball_velocity.x < 0.0,
-                Collision::Top => reflect_y = ball_velocity.y < 0.0,
-                Collision::Bottom => reflect_y = ball_velocity.y > 0.0,
-                Collision::Inside => { /* do nothing */ }
-            }
+                    // only reflect if the ball's velocity is going in the opposite direction of the
+                    // collision
+                    match collision {
+                        Collision::Left => reflect_x = ball_velocity.x > 0.0,
+                        Collision::Right => reflect_x = ball_velocity.x < 0.0,
+                        Collision::Top => reflect_y = ball_velocity.y < 0.0,
+                        Collision::Bottom => reflect_y = ball_velocity.y > 0.0,
+                        Collision::Inside => { /* do nothing */ }
+                    }
 
-            // reflect velocity on the x-axis if we hit something on the x-axis
-            if reflect_x {
-                ball_velocity.x = -ball_velocity.x;
-            }
+                    // reflect velocity on the x-axis if we hit something on the x-axis
+                    if reflect_x {
+                        ball_velocity.x = -ball_velocity.x;
+                    }
 
-            // reflect velocity on the y-axis if we hit something on the y-axis
-            if reflect_y {
-                ball_velocity.y = -ball_velocity.y;
+                    // reflect velocity on the y-axis if we hit something on the y-axis
+                    if reflect_y {
+                        ball_velocity.y = -ball_velocity.y;
+                    }
+                }
             }
         }
     }
