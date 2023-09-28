@@ -5,10 +5,6 @@ use bevy::{
 };
 
 // Constants
-// Game States
-static mut GAME_STARTED: bool = false;
-static mut GAME_PAUSED: bool = false;
-
 // Grid/Bricks
 const GRID_HEIGHT: f32 = 5.;
 const GRID_WIDTH: f32 = 10.;
@@ -124,20 +120,35 @@ struct Scoreboard {
     score: usize,
 }
 
+// Game State
+#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, States)]
+enum GameState {
+    #[default]
+    InGame,
+    Paused,
+}
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
+        .add_state::<GameState>()
+        .add_systems(Startup, setup)
         .insert_resource(ClearColor(BACKGROUND_COLOR))
+        .add_systems(
+            Update,
+            (check_for_state).run_if(in_state(GameState::InGame)),
+        )
+        .add_systems(
+            Update,
+            (check_for_state).run_if(in_state(GameState::Paused)),
+        )
         .add_event::<CollisionEvent>()
         .add_event::<ExplosionEvent>()
         .insert_resource(Scoreboard { score: 0 })
         .insert_resource(FixedTime::new_from_secs(1.0 / 60.0))
-        .add_systems(Startup, setup)
         .add_systems(
             FixedUpdate,
-            (   
-                check_for_start_game.before(check_for_collisions).before(apply_velocity),
-                check_for_pause_game.before(check_for_collisions).before(apply_velocity),
+            (
                 apply_velocity.before(check_for_collisions),
                 move_paddle
                     .before(check_for_collisions)
@@ -156,6 +167,7 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     asset_server: Res<AssetServer>,
+    game_state: Res<State<GameState>>,
 ) {
     commands.spawn(Camera2dBundle::default());
 
@@ -345,73 +357,72 @@ fn setup(
     ));
 
     // Draw "ENTER to start" if Game has not yet been started
-    unsafe {
-        if !GAME_STARTED {
-            commands.spawn((
-                SpriteBundle {
-                    transform: Transform {
-                        translation: Vec3::new(0.0, 0.0, 1.0),
-                        scale: START_OVERLAY_SIZE,
-                        ..default()
-                    },
-                    sprite: Sprite {
-                        color: START_OVERLAY_COLOR,
-                        ..default()
-                    },
+    if game_state.get() == &GameState::Paused {
+        commands.spawn((
+            SpriteBundle {
+                transform: Transform {
+                    translation: Vec3::new(0.0, 0.0, 1.0),
+                    scale: START_OVERLAY_SIZE,
                     ..default()
                 },
-                StartGameOverlay,
-            ));
-            commands.spawn((
-                TextBundle::from_section(
-                    "ENTER to start",
-                    TextStyle {
-                        font_size: START_GAME_FONT_SIZE,
-                        color: START_GAME_TEXT_COLOR,
-                        ..default()
-                    },
-                )
-                .with_style(Style {
-                    position_type: PositionType::Absolute,
-                    top: START_GAME_VERTICAL_PADDING,
-                    left: START_GAME_LEFT_PADDING,
+                sprite: Sprite {
+                    color: START_OVERLAY_COLOR,
                     ..default()
-                }),
-                StartGameOverlay,
-            ));
-        }
+                },
+                ..default()
+            },
+            StartGameOverlay,
+        ));
+        commands.spawn((
+            TextBundle::from_section(
+                "ENTER to start",
+                TextStyle {
+                    font_size: START_GAME_FONT_SIZE,
+                    color: START_GAME_TEXT_COLOR,
+                    ..default()
+                },
+            )
+            .with_style(Style {
+                position_type: PositionType::Absolute,
+                top: START_GAME_VERTICAL_PADDING,
+                left: START_GAME_LEFT_PADDING,
+                ..default()
+            }),
+            StartGameOverlay,
+        ));
     }
 }
 
 fn move_paddle(
     keyboard_input: Res<Input<KeyCode>>,
     mut query: Query<&mut Transform, With<Paddle>>,
+    game_state: Res<State<GameState>>,
 ) {
-    unsafe {
-        if GAME_STARTED && !GAME_PAUSED {
-            let mut direction = 0.;
-            if keyboard_input.pressed(KeyCode::Left) {
-                direction = -1.0;
-            }
-            if keyboard_input.pressed(KeyCode::Right) {
-                direction = 1.0;
-            }
-            let mut paddle_transform = query.single_mut();
-            let new_paddle_position = paddle_transform.translation.x + (direction * PADDLE_SPEED);
-
-            paddle_transform.translation.x =
-                new_paddle_position.clamp(LEFT_BOUND_PADDLE, RIGHT_BOUND_PADDLE);
+    if game_state.get() == &GameState::InGame {
+        let mut direction = 0.;
+        if keyboard_input.pressed(KeyCode::Left) {
+            direction = -1.0;
         }
+        if keyboard_input.pressed(KeyCode::Right) {
+            direction = 1.0;
+        }
+        let mut paddle_transform = query.single_mut();
+        let new_paddle_position = paddle_transform.translation.x + (direction * PADDLE_SPEED);
+
+        paddle_transform.translation.x =
+            new_paddle_position.clamp(LEFT_BOUND_PADDLE, RIGHT_BOUND_PADDLE);
     }
 }
 
-fn apply_velocity(mut query: Query<(&mut Transform, &Velocity)>, time_step: Res<FixedTime>) {
-    unsafe {
-        if GAME_STARTED && !GAME_PAUSED {
-            for (mut transform, velocity) in &mut query {
-                transform.translation.x += velocity.x * time_step.period.as_secs_f32();
-                transform.translation.y += velocity.y * time_step.period.as_secs_f32();
-            }
+fn apply_velocity(
+    mut query: Query<(&mut Transform, &Velocity)>,
+    time_step: Res<FixedTime>,
+    game_state: Res<State<GameState>>,
+) {
+    if game_state.get() == &GameState::InGame {
+        for (mut transform, velocity) in &mut query {
+            transform.translation.x += velocity.x * time_step.period.as_secs_f32();
+            transform.translation.y += velocity.y * time_step.period.as_secs_f32();
         }
     }
 }
@@ -424,70 +435,63 @@ fn update_scoreboard(
     text.sections[1].value = scoreboard.score.to_string();
 }
 
-fn check_for_start_game(
+fn check_for_state(
     mut commands: Commands,
     keyboard_input: Res<Input<KeyCode>>,
     start_query: Query<Entity, With<StartGameOverlay>>,
-) {
-    if keyboard_input.just_released(KeyCode::Return) {
-        for start_ent in &start_query {
-            commands.entity(start_ent).despawn();
-        }
-        unsafe {
-            GAME_STARTED = true;
-        }
-    }
-
-}
-
-fn check_for_pause_game(
-    mut commands: Commands,
-    keyboard_input: Res<Input<KeyCode>>,
     pause_query: Query<Entity, With<PauseGameOverlay>>,
+    game_state: Res<State<GameState>>,
+    mut next_state: ResMut<NextState<GameState>>,
 ) {
-    if keyboard_input.just_released(KeyCode::Return) {
-        unsafe {
-            if GAME_STARTED {
-                if GAME_PAUSED {
-                    for pause_ent in &pause_query {
-                        commands.entity(pause_ent).despawn();
-                    }
-                    GAME_PAUSED = false;
-                } else {
-                    commands.spawn((
-                        SpriteBundle {
-                            transform: Transform {
-                                translation: Vec3::new(0.0, 0.0, 1.0),
-                                scale: PAUSE_OVERLAY_SIZE,
-                                ..default()
-                            },
-                            sprite: Sprite {
-                                color: PAUSE_OVERLAY_COLOR,
-                                ..default()
-                            },
+    match game_state.get() {
+        GameState::InGame => {
+            if keyboard_input.just_released(KeyCode::Return) {
+                for start_ent in &start_query {
+                    commands.entity(start_ent).despawn();
+                }
+                next_state.set(GameState::Paused)
+            }
+        }
+        GameState::Paused => {
+            if keyboard_input.just_released(KeyCode::Return) {
+                for pause_ent in &pause_query {
+                    commands.entity(pause_ent).despawn();
+                }
+                next_state.set(GameState::InGame)
+            } else {
+                commands.spawn((
+                    SpriteBundle {
+                        transform: Transform {
+                            translation: Vec3::new(0.0, 0.0, 1.0),
+                            scale: PAUSE_OVERLAY_SIZE,
                             ..default()
                         },
-                        PauseGameOverlay,
-                    ));
-                    commands.spawn((
-                        TextBundle::from_section(
-                            "ENTER to Resume",
-                            TextStyle {
-                                font_size: PAUSE_GAME_FONT_SIZE,
-                                color: PAUSE_GAME_TEXT_COLOR,
-                                ..default()
-                            },
-                        )
-                        .with_style(Style {
-                            position_type: PositionType::Absolute,
-                            top: PAUSE_GAME_VERTICAL_PADDING,
-                            left: PAUSE_GAME_LEFT_PADDING,
+                        sprite: Sprite {
+                            color: PAUSE_OVERLAY_COLOR,
                             ..default()
-                        }),
-                        PauseGameOverlay,
-                    ));
-                    GAME_PAUSED = true;
-                }
+                        },
+                        ..default()
+                    },
+                    PauseGameOverlay,
+                ));
+                commands.spawn((
+                    TextBundle::from_section(
+                        "ENTER to Resume",
+                        TextStyle {
+                            font_size: PAUSE_GAME_FONT_SIZE,
+                            color: PAUSE_GAME_TEXT_COLOR,
+                            ..default()
+                        },
+                    )
+                    .with_style(Style {
+                        position_type: PositionType::Absolute,
+                        top: PAUSE_GAME_VERTICAL_PADDING,
+                        left: PAUSE_GAME_LEFT_PADDING,
+                        ..default()
+                    }),
+                    PauseGameOverlay,
+                ));
+                next_state.set(GameState::Paused)
             }
         }
     }
@@ -500,54 +504,53 @@ fn check_for_collisions(
     collider_query: Query<(Entity, &Transform, Option<&Brick>), With<Collider>>,
     mut collision_events: EventWriter<CollisionEvent>,
     mut explosion_events: EventWriter<ExplosionEvent>,
+    game_state: Res<State<GameState>>,
 ) {
-    unsafe {
-        if GAME_STARTED && !GAME_PAUSED {
-            let (mut ball_velocity, ball_transform) = ball_query.single_mut();
-            let ball_size = ball_transform.scale.truncate();
+    if game_state.get() == &GameState::InGame {
+        let (mut ball_velocity, ball_transform) = ball_query.single_mut();
+        let ball_size = ball_transform.scale.truncate();
 
-            // check collision with walls
-            for (collider_entity, transform, maybe_brick) in &collider_query {
-                let collision = collide(
-                    ball_transform.translation,
-                    ball_size,
-                    transform.translation,
-                    transform.scale.truncate(),
-                );
-                if let Some(collision) = collision {
-                    // Sends a collision event so that other systems can react to the collision
-                    collision_events.send_default();
+        // check collision with walls
+        for (collider_entity, transform, maybe_brick) in &collider_query {
+            let collision = collide(
+                ball_transform.translation,
+                ball_size,
+                transform.translation,
+                transform.scale.truncate(),
+            );
+            if let Some(collision) = collision {
+                // Sends a collision event so that other systems can react to the collision
+                collision_events.send_default();
 
-                    // Bricks should be despawned and increment the scoreboard on collision
-                    if maybe_brick.is_some() {
-                        explosion_events.send_default();
-                        scoreboard.score += 1;
-                        commands.entity(collider_entity).despawn();
-                    }
+                // Bricks should be despawned and increment the scoreboard on collision
+                if maybe_brick.is_some() {
+                    explosion_events.send_default();
+                    scoreboard.score += 1;
+                    commands.entity(collider_entity).despawn();
+                }
 
-                    // reflect the ball when it collides
-                    let mut reflect_x = false;
-                    let mut reflect_y = false;
+                // reflect the ball when it collides
+                let mut reflect_x = false;
+                let mut reflect_y = false;
 
-                    // only reflect if the ball's velocity is going in the opposite direction of the
-                    // collision
-                    match collision {
-                        Collision::Left => reflect_x = ball_velocity.x > 0.0,
-                        Collision::Right => reflect_x = ball_velocity.x < 0.0,
-                        Collision::Top => reflect_y = ball_velocity.y < 0.0,
-                        Collision::Bottom => reflect_y = ball_velocity.y > 0.0,
-                        Collision::Inside => { /* do nothing */ }
-                    }
+                // only reflect if the ball's velocity is going in the opposite direction of the
+                // collision
+                match collision {
+                    Collision::Left => reflect_x = ball_velocity.x > 0.0,
+                    Collision::Right => reflect_x = ball_velocity.x < 0.0,
+                    Collision::Top => reflect_y = ball_velocity.y < 0.0,
+                    Collision::Bottom => reflect_y = ball_velocity.y > 0.0,
+                    Collision::Inside => { /* do nothing */ }
+                }
 
-                    // reflect velocity on the x-axis if we hit something on the x-axis
-                    if reflect_x {
-                        ball_velocity.x = -ball_velocity.x;
-                    }
+                // reflect velocity on the x-axis if we hit something on the x-axis
+                if reflect_x {
+                    ball_velocity.x = -ball_velocity.x;
+                }
 
-                    // reflect velocity on the y-axis if we hit something on the y-axis
-                    if reflect_y {
-                        ball_velocity.y = -ball_velocity.y;
-                    }
+                // reflect velocity on the y-axis if we hit something on the y-axis
+                if reflect_y {
+                    ball_velocity.y = -ball_velocity.y;
                 }
             }
         }
