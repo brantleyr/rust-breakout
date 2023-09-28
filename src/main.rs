@@ -86,8 +86,14 @@ struct Collider;
 #[derive(Event, Default)]
 struct CollisionEvent;
 
+#[derive(Event, Default)]
+struct ExplosionEvent;
+
 #[derive(Resource)]
 struct CollisionSound(Handle<AudioSource>);
+
+#[derive(Resource)]
+struct ExplosionSound(Handle<AudioSource>);
 
 #[derive(Component)]
 struct Brick;
@@ -112,6 +118,7 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .insert_resource(ClearColor(BACKGROUND_COLOR))
         .add_event::<CollisionEvent>()
+        .add_event::<ExplosionEvent>()
         .insert_resource(Scoreboard { score: 0 })
         .insert_resource(FixedTime::new_from_secs(1.0 / 60.0))
         .add_systems(Startup, setup)
@@ -125,6 +132,7 @@ fn main() {
                     .before(check_for_collisions)
                     .after(apply_velocity),
                 play_collision_sound.after(check_for_collisions),
+                play_explosion_sound.after(check_for_collisions),
             ),
         )
         .add_systems(Update, (update_scoreboard, bevy::window::close_on_esc))
@@ -241,9 +249,12 @@ fn setup(
         i += 1.;
     }
 
-    // Load collision sound
+    // Load collision sounds
     let ball_collision_sound = asset_server.load("sounds/breakout_collision.ogg");
     commands.insert_resource(CollisionSound(ball_collision_sound));
+
+    let brick_explosion_sound = asset_server.load("sounds/breakout_brick_explosion.ogg");
+    commands.insert_resource(ExplosionSound(brick_explosion_sound));
 
     // Draw Paddle
     let paddle_y = BOTTOM_WALL + GAP_BETWEEN_PADDLE_AND_FLOOR;
@@ -423,6 +434,7 @@ fn check_for_collisions(
     mut scoreboard: ResMut<Scoreboard>,
     collider_query: Query<(Entity, &Transform, Option<&Brick>), With<Collider>>,
     mut collision_events: EventWriter<CollisionEvent>,
+    mut explosion_events: EventWriter<ExplosionEvent>,
 ) {
     unsafe {
         if GAME_STARTED && !GAME_PAUSED {
@@ -443,6 +455,7 @@ fn check_for_collisions(
 
                     // Bricks should be despawned and increment the scoreboard on collision
                     if maybe_brick.is_some() {
+                        explosion_events.send_default();
                         scoreboard.score += 1;
                         commands.entity(collider_entity).despawn();
                     }
@@ -485,6 +498,23 @@ fn play_collision_sound(
     if !collision_events.is_empty() {
         // This prevents events staying active on the next frame.
         collision_events.clear();
+        commands.spawn(AudioBundle {
+            source: sound.0.clone(),
+            // auto-despawn the entity when playback finishes
+            settings: PlaybackSettings::DESPAWN,
+        });
+    }
+}
+
+fn play_explosion_sound(
+    mut commands: Commands,
+    mut explosion_events: EventReader<ExplosionEvent>,
+    sound: Res<ExplosionSound>,
+) {
+    // Play a sound once per frame if a explosion occurred.
+    if !explosion_events.is_empty() {
+        // This prevents events staying active on the next frame.
+        explosion_events.clear();
         commands.spawn(AudioBundle {
             source: sound.0.clone(),
             // auto-despawn the entity when playback finishes
