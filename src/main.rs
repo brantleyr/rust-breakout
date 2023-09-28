@@ -71,6 +71,14 @@ const START_GAME_TEXT_COLOR: Color = Color::rgb(0.5, 0.5, 1.0);
 const START_OVERLAY_SIZE: Vec3 = Vec3::new(1500.0, 1500.0, 0.0);
 const START_OVERLAY_COLOR: Color = Color::rgba(0.0, 0.0, 0.0, 0.95);
 
+// Pause Game text and Overlay
+const PAUSE_GAME_VERTICAL_PADDING: Val = Val::Px(300.0);
+const PAUSE_GAME_LEFT_PADDING: Val = Val::Px(475.0);
+const PAUSE_GAME_FONT_SIZE: f32 = 50.0;
+const PAUSE_GAME_TEXT_COLOR: Color = Color::rgb(0.5, 0.5, 1.0);
+const PAUSE_OVERLAY_SIZE: Vec3 = Vec3::new(1500.0, 1500.0, 0.0);
+const PAUSE_OVERLAY_COLOR: Color = Color::rgba(0.0, 0.0, 0.0, 0.95);
+
 #[derive(Component)]
 struct Paddle;
 
@@ -102,6 +110,9 @@ struct Brick;
 struct StartGameOverlay;
 
 #[derive(Component)]
+struct PauseGameOverlay;
+
+#[derive(Component)]
 struct InfoText;
 
 #[derive(Component)]
@@ -125,12 +136,13 @@ fn main() {
         .add_systems(
             FixedUpdate,
             (   
-                check_for_start_game,
-                check_for_collisions,
+                check_for_start_game.before(check_for_collisions).before(apply_velocity),
+                check_for_pause_game.before(check_for_collisions).before(apply_velocity),
                 apply_velocity.before(check_for_collisions),
                 move_paddle
                     .before(check_for_collisions)
                     .after(apply_velocity),
+                check_for_collisions,
                 play_collision_sound.after(check_for_collisions),
                 play_explosion_sound.after(check_for_collisions),
             ),
@@ -290,7 +302,7 @@ fn setup(
     // Draw Info text
     commands.spawn((
         TextBundle::from_section(
-            "Keys:\nLeft/Right arrow to move\nEscape to Quit.",
+            "Keys:\nLeft/Right arrow to move\nEnter to Pause\nEscape to Quit.",
             TextStyle {
                 font_size: INFO_FONT_SIZE,
                 color: INFO_TEXT_COLOR,
@@ -417,8 +429,8 @@ fn check_for_start_game(
     keyboard_input: Res<Input<KeyCode>>,
     start_query: Query<Entity, With<StartGameOverlay>>,
 ) {
-    if keyboard_input.pressed(KeyCode::Return) {
-        for start_ent in & start_query {
+    if keyboard_input.just_released(KeyCode::Return) {
+        for start_ent in &start_query {
             commands.entity(start_ent).despawn();
         }
         unsafe {
@@ -426,6 +438,59 @@ fn check_for_start_game(
         }
     }
 
+}
+
+fn check_for_pause_game(
+    mut commands: Commands,
+    keyboard_input: Res<Input<KeyCode>>,
+    pause_query: Query<Entity, With<PauseGameOverlay>>,
+) {
+    if keyboard_input.just_released(KeyCode::Return) {
+        unsafe {
+            if GAME_STARTED {
+                if GAME_PAUSED {
+                    for pause_ent in &pause_query {
+                        commands.entity(pause_ent).despawn();
+                    }
+                    GAME_PAUSED = false;
+                } else {
+                    commands.spawn((
+                        SpriteBundle {
+                            transform: Transform {
+                                translation: Vec3::new(0.0, 0.0, 1.0),
+                                scale: PAUSE_OVERLAY_SIZE,
+                                ..default()
+                            },
+                            sprite: Sprite {
+                                color: PAUSE_OVERLAY_COLOR,
+                                ..default()
+                            },
+                            ..default()
+                        },
+                        PauseGameOverlay,
+                    ));
+                    commands.spawn((
+                        TextBundle::from_section(
+                            "ENTER to Resume",
+                            TextStyle {
+                                font_size: PAUSE_GAME_FONT_SIZE,
+                                color: PAUSE_GAME_TEXT_COLOR,
+                                ..default()
+                            },
+                        )
+                        .with_style(Style {
+                            position_type: PositionType::Absolute,
+                            top: PAUSE_GAME_VERTICAL_PADDING,
+                            left: PAUSE_GAME_LEFT_PADDING,
+                            ..default()
+                        }),
+                        PauseGameOverlay,
+                    ));
+                    GAME_PAUSED = true;
+                }
+            }
+        }
+    }
 }
 
 fn check_for_collisions(
