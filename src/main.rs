@@ -134,8 +134,14 @@ fn main() {
         .add_state::<GameState>()
         .add_systems(Startup, setup)
         .insert_resource(ClearColor(BACKGROUND_COLOR))
-        .add_systems(OnEnter(GameState::Paused), check_for_state)
-        .add_systems(OnEnter(GameState::InGame), check_for_state)
+        .add_systems(
+            Update,
+            (check_for_state).run_if(in_state(GameState::InGame)),
+        )
+        .add_systems(
+            Update,
+            (check_for_state).run_if(in_state(GameState::Paused)),
+        )
         .add_event::<CollisionEvent>()
         .add_event::<ExplosionEvent>()
         .insert_resource(Scoreboard { score: 0 })
