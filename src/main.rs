@@ -194,81 +194,7 @@ fn setup(
 ) {
     commands.spawn(Camera2dBundle::default());
 
-    // Draw walls
-    // Left
-    let left_x = LEFT_WALL;
-    let left_y = 0.0;
-    commands.spawn((
-        SpriteBundle {
-            transform: Transform {
-                translation: Vec3::new(left_x, left_y, 0.0),
-                scale: LEFT_WALL_SIZE,
-                ..default()
-            },
-            sprite: Sprite {
-                color: WALL_COLOR,
-                ..default()
-            },
-            ..default()
-        },
-        Collider,
-    ));
-    // Right
-    let right_x = RIGHT_WALL;
-    let right_y = 0.0;
-    commands.spawn((
-        SpriteBundle {
-            transform: Transform {
-                translation: Vec3::new(right_x, right_y, 0.0),
-                scale: RIGHT_WALL_SIZE,
-                ..default()
-            },
-            sprite: Sprite {
-                color: WALL_COLOR,
-                ..default()
-            },
-            ..default()
-        },
-        Collider,
-    ));
-    // Top
-    let top_x = 0.0 + TB_WALL_ADJUST;
-    let top_y = TOP_WALL;
-    commands.spawn((
-        SpriteBundle {
-            transform: Transform {
-                translation: Vec3::new(top_x, top_y, 0.0),
-                scale: TOP_WALL_SIZE,
-                ..default()
-            },
-            sprite: Sprite {
-                color: WALL_COLOR,
-                ..default()
-            },
-            ..default()
-        },
-        Collider,
-    ));
-    // Bottom
-    let bottom_x = 0.0 + TB_WALL_ADJUST;
-    let bottom_y = BOTTOM_WALL;
-    commands.spawn((
-        SpriteBundle {
-            transform: Transform {
-                translation: Vec3::new(bottom_x, bottom_y, 0.0),
-                scale: BOTTOM_WALL_SIZE,
-                ..default()
-            },
-            sprite: Sprite {
-                color: WALL_COLOR,
-                ..default()
-            },
-            ..default()
-        },
-        BottomWall,
-        Collider,
-    ));
-
+    spawn_walls(&mut commands);
     spawn_bricks(&mut commands);
 
     // Load collision sounds
@@ -389,6 +315,83 @@ fn setup(
             StartGameOverlay,
         ));
     }
+}
+
+fn spawn_walls(commands: &mut Commands) {
+    // Draw walls
+    // Left
+    let left_x = LEFT_WALL;
+    let left_y = 0.0;
+    commands.spawn((
+        SpriteBundle {
+            transform: Transform {
+                translation: Vec3::new(left_x, left_y, 0.0),
+                scale: LEFT_WALL_SIZE,
+                ..default()
+            },
+            sprite: Sprite {
+                color: WALL_COLOR,
+                ..default()
+            },
+            ..default()
+        },
+        Collider,
+    ));
+    // Right
+    let right_x = RIGHT_WALL;
+    let right_y = 0.0;
+    commands.spawn((
+        SpriteBundle {
+            transform: Transform {
+                translation: Vec3::new(right_x, right_y, 0.0),
+                scale: RIGHT_WALL_SIZE,
+                ..default()
+            },
+            sprite: Sprite {
+                color: WALL_COLOR,
+                ..default()
+            },
+            ..default()
+        },
+        Collider,
+    ));
+    // Top
+    let top_x = 0.0 + TB_WALL_ADJUST;
+    let top_y = TOP_WALL;
+    commands.spawn((
+        SpriteBundle {
+            transform: Transform {
+                translation: Vec3::new(top_x, top_y, 0.0),
+                scale: TOP_WALL_SIZE,
+                ..default()
+            },
+            sprite: Sprite {
+                color: WALL_COLOR,
+                ..default()
+            },
+            ..default()
+        },
+        Collider,
+    ));
+    // Bottom
+    let bottom_x = 0.0 + TB_WALL_ADJUST;
+    let bottom_y = BOTTOM_WALL;
+    commands.spawn((
+        SpriteBundle {
+            transform: Transform {
+                translation: Vec3::new(bottom_x, bottom_y, 0.0),
+                scale: BOTTOM_WALL_SIZE,
+                ..default()
+            },
+            sprite: Sprite {
+                color: WALL_COLOR,
+                ..default()
+            },
+            ..default()
+        },
+        BottomWall,
+        Collider,
+    ));
 }
 
 fn spawn_bricks(commands: &mut Commands) {
