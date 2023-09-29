@@ -523,49 +523,48 @@ fn check_for_state(
                 ));
             }
         },
-        GameState::GameOver => {
-            commands.spawn((
-                SpriteBundle {
-                    transform: Transform {
-                        translation: Vec3::new(0.0, 0.0, 1.0),
-                        scale: GAMEOVER_OVERLAY_SIZE,
-                        ..default()
-                    },
-                    sprite: Sprite {
-                        color: GAMEOVER_OVERLAY_COLOR,
-                        ..default()
-                    },
-                    ..default()
-                },
-                GameOverOverlay,
-            ));
-            commands.spawn((
-                TextBundle::from_section(
-                    "Game Over!\nENTER to Restart",
-                    TextStyle {
-                        font_size: GAMEOVER_FONT_SIZE,
-                        color: GAMEOVER_TEXT_COLOR,
-                        ..default()
-                    },
-                )
-                .with_style(Style {
-                    position_type: PositionType::Absolute,
-                    top: GAMEOVER_VERTICAL_PADDING,
-                    left: GAMEOVER_LEFT_PADDING,
-                    ..default()
-                }),
-                GameOverOverlay,
-            ));
-            match keyboard_input.just_released(KeyCode::Return) {
-                true => {
-                    for gameover_ent in &gameover_query {
-                        commands.entity(gameover_ent).despawn();
-                    }
-                    next_state.set(GameState::InGame)
+        GameState::GameOver => match keyboard_input.just_released(KeyCode::Return) {
+            true => {
+                for gameover_ent in &gameover_query {
+                    commands.entity(gameover_ent).despawn();
                 }
-                false => (),
+                next_state.set(GameState::InGame)
             }
-        }
+            false => {
+                commands.spawn((
+                    SpriteBundle {
+                        transform: Transform {
+                            translation: Vec3::new(0.0, 0.0, 1.0),
+                            scale: GAMEOVER_OVERLAY_SIZE,
+                            ..default()
+                        },
+                        sprite: Sprite {
+                            color: GAMEOVER_OVERLAY_COLOR,
+                            ..default()
+                        },
+                        ..default()
+                    },
+                    GameOverOverlay,
+                ));
+                commands.spawn((
+                    TextBundle::from_section(
+                        "Game Over!\nENTER to Restart",
+                        TextStyle {
+                            font_size: GAMEOVER_FONT_SIZE,
+                            color: GAMEOVER_TEXT_COLOR,
+                            ..default()
+                        },
+                    )
+                    .with_style(Style {
+                        position_type: PositionType::Absolute,
+                        top: GAMEOVER_VERTICAL_PADDING,
+                        left: GAMEOVER_LEFT_PADDING,
+                        ..default()
+                    }),
+                    GameOverOverlay,
+                ));
+            }
+        },
     }
 }
 
