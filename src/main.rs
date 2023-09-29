@@ -124,6 +124,7 @@ struct Scoreboard {
 #[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, States)]
 enum GameState {
     #[default]
+    NewGame,
     InGame,
     Paused,
 }
@@ -134,6 +135,10 @@ fn main() {
         .add_state::<GameState>()
         .add_systems(Startup, setup)
         .insert_resource(ClearColor(BACKGROUND_COLOR))
+        .add_systems(
+            Update,
+            (check_for_state).run_if(in_state(GameState::NewGame)),
+        )
         .add_systems(
             Update,
             (
@@ -356,7 +361,7 @@ fn setup(
     ));
 
     // Draw "ENTER to start" if Game has not yet been started
-    if game_state.get() == &GameState::Paused {
+    if game_state.get() == &GameState::NewGame {
         commands.spawn((
             SpriteBundle {
                 transform: Transform {
@@ -443,6 +448,14 @@ fn check_for_state(
     mut next_state: ResMut<NextState<GameState>>,
 ) {
     match game_state.get() {
+        GameState::NewGame => {
+            if keyboard_input.just_released(KeyCode::Return) {
+                for start_ent in &start_query {
+                    commands.entity(start_ent).despawn();
+                }
+                next_state.set(GameState::InGame)
+            }
+        }
         GameState::InGame => {
             if keyboard_input.just_released(KeyCode::Return) {
                 for start_ent in &start_query {
