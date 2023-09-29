@@ -449,9 +449,6 @@ fn check_for_state(
         }
         GameState::InGame => {
             if keyboard_input.just_released(KeyCode::Return) {
-                for start_ent in &start_query {
-                    commands.entity(start_ent).despawn();
-                }
                 next_state.set(GameState::Paused)
             }
         }
