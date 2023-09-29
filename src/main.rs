@@ -53,8 +53,15 @@ const SCOREBOARD_TEXT_PADDING: Val = Val::Px(5.0);
 const SCOREBOARD_TEXT_COLOR: Color = Color::rgb(0.5, 0.5, 1.0);
 const SCOREBOARD_SCORE_COLOR: Color = Color::rgb(1.0, 0.5, 0.5);
 
+// Lives
+const LIVES_FONT_SIZE: f32 = 40.0;
+const LIVES_TEXT_PADDING: Val = Val::Px(5.0);
+const LIVES_VERTICAL_PADDING: Val = Val::Px(45.0);
+const LIVES_TEXT_COLOR: Color = Color::rgb(0.5, 0.5, 1.0);
+const LIVES_SCORE_COLOR: Color = Color::rgb(1.0, 0.5, 0.5);
+
 // Info text
-const INFO_VERTICAL_PADDING: Val = Val::Px(45.0);
+const INFO_VERTICAL_PADDING: Val = Val::Px(85.0);
 const INFO_TEXT_PADDING: Val = Val::Px(8.0);
 const INFO_FONT_SIZE: f32 = 18.5;
 const INFO_TEXT_COLOR: Color = Color::rgb(0.5, 0.5, 1.0);
@@ -126,12 +133,21 @@ struct GameOverOverlay;
 struct ScoreboardText;
 
 #[derive(Component)]
+struct LivesText;
+
+#[derive(Component)]
 struct BottomWall;
 
 // This resource tracks the game's score
 #[derive(Resource)]
 struct Scoreboard {
     score: usize,
+}
+
+// This resource tracks the game's score
+#[derive(Resource)]
+struct Lives {
+    lives_left: usize,
 }
 
 // Game State
@@ -166,6 +182,7 @@ fn main() {
                 play_collision_sound.after(check_for_collisions),
                 play_explosion_sound.after(check_for_collisions),
                 update_scoreboard,
+                update_lives,
             )
                 .run_if(in_state(GameState::InGame)),
         )
@@ -180,6 +197,7 @@ fn main() {
         .add_event::<CollisionEvent>()
         .add_event::<ExplosionEvent>()
         .insert_resource(Scoreboard { score: 0 })
+        .insert_resource(Lives { lives_left: 3 })
         .insert_resource(FixedTime::new_from_secs(1.0 / 60.0))
         .add_systems(Update, bevy::window::close_on_esc)
         .run();
@@ -278,6 +296,32 @@ fn setup(
             ..default()
         }),
         ScoreboardText,
+    ));
+
+    // Draw Lives
+    commands.spawn((
+        TextBundle::from_sections([
+            TextSection::new(
+                "Lives: ",
+                TextStyle {
+                    font_size: LIVES_FONT_SIZE,
+                    color: LIVES_TEXT_COLOR,
+                    ..default()
+                },
+            ),
+            TextSection::from_style(TextStyle {
+                font_size: LIVES_FONT_SIZE,
+                color: LIVES_SCORE_COLOR,
+                ..default()
+            }),
+        ])
+        .with_style(Style {
+            position_type: PositionType::Absolute,
+            top: LIVES_VERTICAL_PADDING,
+            left: LIVES_TEXT_PADDING,
+            ..default()
+        }),
+        LivesText,
     ));
 
     // Draw "ENTER to start" if Game has not yet been started
@@ -457,6 +501,11 @@ fn update_scoreboard(
     text.sections[1].value = scoreboard.score.to_string();
 }
 
+fn update_lives(lives: Res<Lives>, mut query: Query<&mut Text, With<LivesText>>) {
+    let mut text = query.single_mut();
+    text.sections[1].value = lives.lives_left.to_string();
+}
+
 fn check_for_state(
     mut commands: Commands,
     keyboard_input: Res<Input<KeyCode>>,
@@ -572,6 +621,7 @@ fn check_for_collisions(
     mut commands: Commands,
     mut ball_query: Query<(&mut Velocity, &Transform), With<Ball>>,
     mut scoreboard: ResMut<Scoreboard>,
+    mut lives: ResMut<Lives>,
     collider_query: Query<
         (Entity, &Transform, Option<&Brick>, Option<&BottomWall>),
         With<Collider>,
@@ -600,13 +650,22 @@ fn check_for_collisions(
                 explosion_events.send_default();
                 scoreboard.score += 1;
                 commands.entity(collider_entity).despawn();
+
+                if scoreboard.score % 50 == 0 {
+                    spawn_bricks(&mut commands)
+                }
             }
 
             // Bricks should be despawned and increment the scoreboard on collision
             if maybe_bottom.is_some() {
-                scoreboard.score = 0;
-                spawn_bricks(&mut commands);
-                next_state.set(GameState::GameOver);
+                if lives.lives_left == 1 {
+                    spawn_bricks(&mut commands);
+                    scoreboard.score = 0;
+                    next_state.set(GameState::GameOver);
+                    lives.lives_left = 3;
+                } else {
+                    lives.lives_left -= 1
+                }
             }
 
             // reflect the ball when it collides
