@@ -537,7 +537,7 @@ fn check_for_state(
                     },
                     ..default()
                 },
-                StartGameOverlay,
+                GameOverOverlay,
             ));
             commands.spawn((
                 TextBundle::from_section(
