@@ -75,6 +75,14 @@ const PAUSE_GAME_TEXT_COLOR: Color = Color::rgb(0.5, 0.5, 1.0);
 const PAUSE_OVERLAY_SIZE: Vec3 = Vec3::new(1500.0, 1500.0, 0.0);
 const PAUSE_OVERLAY_COLOR: Color = Color::rgba(0.0, 0.0, 0.0, 0.95);
 
+// Start Game text and Overlay
+const GAMEOVER_FONT_SIZE: f32 = 50.0;
+const GAMEOVER_TEXT_COLOR: Color = Color::rgb(0.5, 0.5, 1.0);
+const GAMEOVER_OVERLAY_SIZE: Vec3 = Vec3::new(1500.0, 1500.0, 0.0);
+const GAMEOVER_OVERLAY_COLOR: Color = Color::rgba(0.0, 0.0, 0.0, 0.95);
+const GAMEOVER_VERTICAL_PADDING: Val = Val::Px(300.0);
+const GAMEOVER_LEFT_PADDING: Val = Val::Px(475.0);
+
 #[derive(Component)]
 struct Paddle;
 
@@ -112,7 +120,13 @@ struct PauseGameOverlay;
 struct InfoText;
 
 #[derive(Component)]
+struct GameOverOverlay;
+
+#[derive(Component)]
 struct ScoreboardText;
+
+#[derive(Component)]
+struct BottomWall;
 
 // This resource tracks the game's score
 #[derive(Resource)]
@@ -127,6 +141,7 @@ enum GameState {
     NewGame,
     InGame,
     Paused,
+    GameOver,
 }
 
 fn main() {
@@ -157,6 +172,10 @@ fn main() {
         .add_systems(
             Update,
             (check_for_state).run_if(in_state(GameState::Paused)),
+        )
+        .add_systems(
+            Update,
+            (check_for_state).run_if(in_state(GameState::GameOver)),
         )
         .add_event::<CollisionEvent>()
         .add_event::<ExplosionEvent>()
@@ -246,36 +265,11 @@ fn setup(
             },
             ..default()
         },
+        BottomWall,
         Collider,
     ));
 
-    // Draw Grid
-    let mut i = 0.;
-    while i < GRID_HEIGHT {
-        let mut i2 = 0.;
-        while i2 < GRID_WIDTH {
-            let grid_cell_top = GRID_CELL_TOP - (i * GRID_CELL_HEIGHT) - (i * GRID_CELL_SPACE);
-            let grid_cell_left = GRID_CELL_LEFT + (i2 * GRID_CELL_WIDTH) + (i2 * GRID_CELL_SPACE);
-            commands.spawn((
-                SpriteBundle {
-                    transform: Transform {
-                        translation: Vec3::new(grid_cell_left, grid_cell_top, 0.0),
-                        scale: BRICK_SIZE,
-                        ..default()
-                    },
-                    sprite: Sprite {
-                        color: Color::rgb(0.25 + (i / 10.), 0.75, 0.25 + (i / 10.)),
-                        ..default()
-                    },
-                    ..default()
-                },
-                Brick,
-                Collider,
-            ));
-            i2 += 1.;
-        }
-        i += 1.;
-    }
+    spawn_bricks(&mut commands);
 
     // Load collision sounds
     let ball_collision_sound = asset_server.load("sounds/breakout_collision.ogg");
@@ -397,6 +391,36 @@ fn setup(
     }
 }
 
+fn spawn_bricks(commands: &mut Commands) {
+    // Draw Grid
+    let mut i = 0.;
+    while i < GRID_HEIGHT {
+        let mut i2 = 0.;
+        while i2 < GRID_WIDTH {
+            let grid_cell_top = GRID_CELL_TOP - (i * GRID_CELL_HEIGHT) - (i * GRID_CELL_SPACE);
+            let grid_cell_left = GRID_CELL_LEFT + (i2 * GRID_CELL_WIDTH) + (i2 * GRID_CELL_SPACE);
+            commands.spawn((
+                SpriteBundle {
+                    transform: Transform {
+                        translation: Vec3::new(grid_cell_left, grid_cell_top, 0.0),
+                        scale: BRICK_SIZE,
+                        ..default()
+                    },
+                    sprite: Sprite {
+                        color: Color::rgb(0.25 + (i / 10.), 0.75, 0.25 + (i / 10.)),
+                        ..default()
+                    },
+                    ..default()
+                },
+                Brick,
+                Collider,
+            ));
+            i2 += 1.;
+        }
+        i += 1.;
+    }
+}
+
 fn move_paddle(
     keyboard_input: Res<Input<KeyCode>>,
     mut query: Query<&mut Transform, With<Paddle>>,
@@ -435,6 +459,7 @@ fn check_for_state(
     keyboard_input: Res<Input<KeyCode>>,
     start_query: Query<Entity, With<StartGameOverlay>>,
     pause_query: Query<Entity, With<PauseGameOverlay>>,
+    gameover_query: Query<Entity, With<GameOverOverlay>>,
     game_state: Res<State<GameState>>,
     mut next_state: ResMut<NextState<GameState>>,
 ) {
@@ -495,6 +520,49 @@ fn check_for_state(
                 ));
             }
         },
+        GameState::GameOver => {
+            commands.spawn((
+                SpriteBundle {
+                    transform: Transform {
+                        translation: Vec3::new(0.0, 0.0, 1.0),
+                        scale: GAMEOVER_OVERLAY_SIZE,
+                        ..default()
+                    },
+                    sprite: Sprite {
+                        color: GAMEOVER_OVERLAY_COLOR,
+                        ..default()
+                    },
+                    ..default()
+                },
+                StartGameOverlay,
+            ));
+            commands.spawn((
+                TextBundle::from_section(
+                    "Game Over!\nENTER to Restart",
+                    TextStyle {
+                        font_size: GAMEOVER_FONT_SIZE,
+                        color: GAMEOVER_TEXT_COLOR,
+                        ..default()
+                    },
+                )
+                .with_style(Style {
+                    position_type: PositionType::Absolute,
+                    top: GAMEOVER_VERTICAL_PADDING,
+                    left: GAMEOVER_LEFT_PADDING,
+                    ..default()
+                }),
+                GameOverOverlay,
+            ));
+            match keyboard_input.just_released(KeyCode::Return) {
+                true => {
+                    for gameover_ent in &gameover_query {
+                        commands.entity(gameover_ent).despawn();
+                    }
+                    next_state.set(GameState::InGame)
+                }
+                false => (),
+            }
+        }
     }
 }
 
@@ -502,15 +570,19 @@ fn check_for_collisions(
     mut commands: Commands,
     mut ball_query: Query<(&mut Velocity, &Transform), With<Ball>>,
     mut scoreboard: ResMut<Scoreboard>,
-    collider_query: Query<(Entity, &Transform, Option<&Brick>), With<Collider>>,
+    collider_query: Query<
+        (Entity, &Transform, Option<&Brick>, Option<&BottomWall>),
+        With<Collider>,
+    >,
     mut collision_events: EventWriter<CollisionEvent>,
     mut explosion_events: EventWriter<ExplosionEvent>,
+    mut next_state: ResMut<NextState<GameState>>,
 ) {
     let (mut ball_velocity, ball_transform) = ball_query.single_mut();
     let ball_size = ball_transform.scale.truncate();
 
     // check collision with walls
-    for (collider_entity, transform, maybe_brick) in &collider_query {
+    for (collider_entity, transform, maybe_brick, maybe_bottom) in &collider_query {
         let collision = collide(
             ball_transform.translation,
             ball_size,
@@ -526,6 +598,13 @@ fn check_for_collisions(
                 explosion_events.send_default();
                 scoreboard.score += 1;
                 commands.entity(collider_entity).despawn();
+            }
+
+            // Bricks should be despawned and increment the scoreboard on collision
+            if maybe_bottom.is_some() {
+                scoreboard.score = 0;
+                spawn_bricks(&mut commands);
+                next_state.set(GameState::GameOver);
             }
 
             // reflect the ball when it collides
