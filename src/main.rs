@@ -460,6 +460,7 @@ fn check_for_state(
                 next_state.set(GameState::InGame)
             }
             false => {
+                next_state.set(GameState::Paused);
                 commands.spawn((
                     SpriteBundle {
                         transform: Transform {
@@ -492,7 +493,6 @@ fn check_for_state(
                     }),
                     PauseGameOverlay,
                 ));
-                next_state.set(GameState::Paused)
             }
         },
     }
