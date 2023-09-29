@@ -400,34 +400,25 @@ fn setup(
 fn move_paddle(
     keyboard_input: Res<Input<KeyCode>>,
     mut query: Query<&mut Transform, With<Paddle>>,
-    game_state: Res<State<GameState>>,
 ) {
-    if game_state.get() == &GameState::InGame {
-        let mut direction = 0.;
-        if keyboard_input.pressed(KeyCode::Left) {
-            direction = -1.0;
-        }
-        if keyboard_input.pressed(KeyCode::Right) {
-            direction = 1.0;
-        }
-        let mut paddle_transform = query.single_mut();
-        let new_paddle_position = paddle_transform.translation.x + (direction * PADDLE_SPEED);
-
-        paddle_transform.translation.x =
-            new_paddle_position.clamp(LEFT_BOUND_PADDLE, RIGHT_BOUND_PADDLE);
+    let mut direction = 0.;
+    if keyboard_input.pressed(KeyCode::Left) {
+        direction = -1.0;
     }
+    if keyboard_input.pressed(KeyCode::Right) {
+        direction = 1.0;
+    }
+    let mut paddle_transform = query.single_mut();
+    let new_paddle_position = paddle_transform.translation.x + (direction * PADDLE_SPEED);
+
+    paddle_transform.translation.x =
+        new_paddle_position.clamp(LEFT_BOUND_PADDLE, RIGHT_BOUND_PADDLE);
 }
 
-fn apply_velocity(
-    mut query: Query<(&mut Transform, &Velocity)>,
-    time_step: Res<FixedTime>,
-    game_state: Res<State<GameState>>,
-) {
-    if game_state.get() == &GameState::InGame {
-        for (mut transform, velocity) in &mut query {
-            transform.translation.x += velocity.x * time_step.period.as_secs_f32();
-            transform.translation.y += velocity.y * time_step.period.as_secs_f32();
-        }
+fn apply_velocity(mut query: Query<(&mut Transform, &Velocity)>, time_step: Res<FixedTime>) {
+    for (mut transform, velocity) in &mut query {
+        transform.translation.x += velocity.x * time_step.period.as_secs_f32();
+        transform.translation.y += velocity.y * time_step.period.as_secs_f32();
     }
 }
 
@@ -517,54 +508,51 @@ fn check_for_collisions(
     collider_query: Query<(Entity, &Transform, Option<&Brick>), With<Collider>>,
     mut collision_events: EventWriter<CollisionEvent>,
     mut explosion_events: EventWriter<ExplosionEvent>,
-    game_state: Res<State<GameState>>,
 ) {
-    if game_state.get() == &GameState::InGame {
-        let (mut ball_velocity, ball_transform) = ball_query.single_mut();
-        let ball_size = ball_transform.scale.truncate();
+    let (mut ball_velocity, ball_transform) = ball_query.single_mut();
+    let ball_size = ball_transform.scale.truncate();
 
-        // check collision with walls
-        for (collider_entity, transform, maybe_brick) in &collider_query {
-            let collision = collide(
-                ball_transform.translation,
-                ball_size,
-                transform.translation,
-                transform.scale.truncate(),
-            );
-            if let Some(collision) = collision {
-                // Sends a collision event so that other systems can react to the collision
-                collision_events.send_default();
+    // check collision with walls
+    for (collider_entity, transform, maybe_brick) in &collider_query {
+        let collision = collide(
+            ball_transform.translation,
+            ball_size,
+            transform.translation,
+            transform.scale.truncate(),
+        );
+        if let Some(collision) = collision {
+            // Sends a collision event so that other systems can react to the collision
+            collision_events.send_default();
 
-                // Bricks should be despawned and increment the scoreboard on collision
-                if maybe_brick.is_some() {
-                    explosion_events.send_default();
-                    scoreboard.score += 1;
-                    commands.entity(collider_entity).despawn();
-                }
+            // Bricks should be despawned and increment the scoreboard on collision
+            if maybe_brick.is_some() {
+                explosion_events.send_default();
+                scoreboard.score += 1;
+                commands.entity(collider_entity).despawn();
+            }
 
-                // reflect the ball when it collides
-                let mut reflect_x = false;
-                let mut reflect_y = false;
+            // reflect the ball when it collides
+            let mut reflect_x = false;
+            let mut reflect_y = false;
 
-                // only reflect if the ball's velocity is going in the opposite direction of the
-                // collision
-                match collision {
-                    Collision::Left => reflect_x = ball_velocity.x > 0.0,
-                    Collision::Right => reflect_x = ball_velocity.x < 0.0,
-                    Collision::Top => reflect_y = ball_velocity.y < 0.0,
-                    Collision::Bottom => reflect_y = ball_velocity.y > 0.0,
-                    Collision::Inside => { /* do nothing */ }
-                }
+            // only reflect if the ball's velocity is going in the opposite direction of the
+            // collision
+            match collision {
+                Collision::Left => reflect_x = ball_velocity.x > 0.0,
+                Collision::Right => reflect_x = ball_velocity.x < 0.0,
+                Collision::Top => reflect_y = ball_velocity.y < 0.0,
+                Collision::Bottom => reflect_y = ball_velocity.y > 0.0,
+                Collision::Inside => { /* do nothing */ }
+            }
 
-                // reflect velocity on the x-axis if we hit something on the x-axis
-                if reflect_x {
-                    ball_velocity.x = -ball_velocity.x;
-                }
+            // reflect velocity on the x-axis if we hit something on the x-axis
+            if reflect_x {
+                ball_velocity.x = -ball_velocity.x;
+            }
 
-                // reflect velocity on the y-axis if we hit something on the y-axis
-                if reflect_y {
-                    ball_velocity.y = -ball_velocity.y;
-                }
+            // reflect velocity on the y-axis if we hit something on the y-axis
+            if reflect_y {
+                ball_velocity.y = -ball_velocity.y;
             }
         }
     }
